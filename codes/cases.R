@@ -18,15 +18,22 @@ library(epitools)
 NRW_pop <- 17925570
 NRW_under12 <- 2014762
 NRW_vacc <- NRW_pop -NRW_under12
+start_day <- as.Date("2020-02-27")# data before this day won't be counted
 
 # Read data
 # is "data_public" generated fromFall_Liste? Why don't retain "hosp_status" variable
-dat = read.csv("C:/Users/huynh/sciebo/NRW_descriptive/data/data_public.csv", sep=";")
-# dat$rep_date<-strptime(dat$rep_date, format = "%d%b%y")
-# dat$rep_date<- as.Date(dat$rep_date, "%Y-%m-%d")
-# dat$disease_start<-strptime(dat$disease_start, format = "%d%b%y")
-# dat$disease_start<- as.Date(dat$disease_start, "%Y-%m-%d")
-# dat$age <- ifelse(dat$age=="-1", NA, dat$age)
+# dat = read.csv("C:/Users/huynh/sciebo/NRW_descriptive/data/data_public.csv", sep=";")
+dat = read.csv("C:/Users/huynh/sciebo/NRW_descriptive/data/211229_Fall-Liste.csv", sep=";")
+# dat = read.csv("C:/Users/huynh/sciebo/NRW_descriptive/data/Book1.csv",sep=";")
+colnames(dat)
+dat <- dat %>% select(-c("X...InterneRef"))
+names(dat) <- c("rep_date","county", "disease_start", "age",'hospitalized')   #rename
+
+dat$rep_date<- as.Date(dat$rep_date, "%Y-%m-%d")
+dat$disease_start<- as.Date(dat$disease_start, "%Y-%m-%d")
+dat$county <- as.factor(dat$county)
+dat$rep_week <- as.integer((as.Date(dat$rep_date)-as.Date("2020-01-01"))/7+1)
+dat$maxrepweek <- max(dat$rep_week) 
 
 #revert week to date: week1,2020 include 3 dates 1,2,3, week2 start at 4,... ##Mon is start of a week
 #check which day is starting of a week 
@@ -67,7 +74,7 @@ dat_week <- rbind(dat_week, dat_allAge)# add cases of allAge
 dat_week <- dat_week %>% group_by(rep_week) %>% mutate(percent_repweek=cases/sum(cases))
 
 dat_date <- dat %>% group_by(rep_date, agegroup) %>% dplyr::summarise(cases=n())
-dat_date <- dat_date %>% filter(rep_date>"2020-02-26")
+dat_date <- dat_date %>% filter(rep_date > start_day)
 dat_date <- dat_date %>% group_by(rep_date) %>% mutate(percent_repdate=cases/sum(cases))
 
 # age_nrw = read_csv("C:/Users/Tom/Documents/Praktikum M|nster/Covid-19 LZG/Analyse/now_casting/Alter_NRW.csv")
@@ -148,3 +155,8 @@ dat_all %>%
 
 # ggsave("Heatmap.png", plot = last_plot(), width=18, height=8, path = "C:/Users/Tom/Documents/Praktikum M|nster/Covimod/plots")
 
+
+#group data by county########
+dat_county <- dat %>% group_by(county) %>%
+  dplyr::summarise(cases=n())%>%
+  ungroup() 
