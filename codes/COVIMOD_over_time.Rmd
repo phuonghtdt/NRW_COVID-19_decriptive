@@ -19,26 +19,23 @@ knitr::opts_chunk$set(fig.retina = 1, fig.height = 7, fig.width = 7,
                       results='hide')
 Sys.setlocale("LC_TIME", "C")
 BEGIN_RMD <- Sys.time() # Keeping track of running time
-USER <- "Phuong"
 set.seed(75876342)
 options(warn = 1) # If warn is one, warnings are printed as they occur.
 
-path_figures <- "C:/Users/huynh/sciebo/NRW_descriptive/results/covimod_NRW_valid code"
-path_contact_pattern <- "C:/Users/huynh/sciebo/NRW_descriptive/results/covimod_NRW_valid code/contact_pattern"
-
-# current_file <- "C:/Users/huynh/sciebo/NRW_descriptive/COVIMOD/wave 1 to 32/old_questionnaire/complete wave 13_anonymised.RData"
-# current_file <- "C:/Users/huynh/sciebo/NRW_descriptive/COVIMOD/wave 1 to 32/new_questionnaire/complete wave 32_anonymised.RData"
-# load(current_file, .GlobalEnv)
-a_wave <-32
+path_data <- "C:/Users/huynh/sciebo/NRW_descriptive/COVIMOD/wave 1 to 32"
+path_figures <- "C:/Users/huynh/sciebo/NRW_descriptive/results/covimod"
+path_contact_pattern <- "C:/Users/huynh/sciebo/NRW_descriptive/results/covimod/contact_pattern"
 
 
 ```
 
+#changeable variables
 ```{r}
 #at which number should group contacts be truncated?
 truncate <- 100 #question 100 ?
 truncate_lshtm <- 50 #
 current_wave <-32
+base_size <- 10 # size of the font in plot
 
 
 ```
@@ -653,13 +650,12 @@ LABEL_PLACES <- c("Own home",
                   "Other",
                   "Not specified",
                   "Multiple locations")
-CONTACT_N <- sub("place_", "", places)
+CONTACT_N <- sub("place_", "", places) # delete 'place_' pattern in each element of vector places
 CONTACT_N <- paste0(CONTACT_N, "_contact_n")
 
 WEIGHTING <- c("Unweighted", "Weights age & household size")
 HH_OUTSIDE <- c()
 
-base_size <- 10
 palette <- c("#003366", "#336699", "#CCFFFF", "#028482", "#663399", "#990033", "#FF3333", "#FF9900", 
              "#266A2E", "#55D43F", "#404040", "#C87533", "#DCDCDC", "#FFDE00", "#F1B2E1", "#FF717E")
 print(palette)
@@ -667,41 +663,28 @@ scales::show_col(palette)
 
 ```
 
-#data input
+#data overview
+
+Each wave contain 3 datasets: d_self_anonymised, dt_hh_anonymised, dt_outside_anonymised.
+
 ##old questionaire
 
 ```{r Data information old questionnaire, i.e. wave 1 to 13, results='markup', comment=""}
 
-# DATA <- list.files(path = "C:/Users/jaeger/Desktop/vom server/COVID_Polymod/Data/anonymized/currently_analysed/old_questionnaire/",
-#                    pattern = "RData",
-#                    full.names = TRUE)
-
-DATA <- list.files(path = "C:/Users/huynh/sciebo/NRW_descriptive/COVIMOD/wave 1 to 32/old_questionnaire",
+DATA <- list.files(path = paste0(path_data,"/old_questionnaire"),
                    pattern = "RData",
                    full.names = TRUE)
 
 # all files must have the same structure:
-## d_self_anonymised
-## dt_hh_anonymised
-## dt_outside_anonymised
 counter <- 0
 for(current_file in DATA) {
   counter <- counter + 1
   load(current_file, .GlobalEnv) # , verbose=TRUE)
   WAVE <- current_file
-# WAVE <- sub(paste0("C[:]/Users/", USER, "/sciebo/Contact[-]a[-]thon/COVIMOD/COVIMOD_WAVE "),
-#            "", WAVE)
-  WAVE <- sub("C:/Users/huynh/sciebo/NRW_descriptive/COVIMOD/wave 1 to 32/old_questionnaire/complete wave ", "", WAVE)
+  WAVE <- sub(paste0(path_data,"/old_questionnaire/complete wave "), "", WAVE)
   WAVE <- as.integer(sub("_anonymised[.]RData", "", WAVE))  
-  
-  # for(current_variable in names(d_self_anonymised)) {
-  #   if(class(d_self_anonymised[, current_variable])[1] %in% c("factor", "haven_labelled")) { 
-  #     d_self_anonymised[, current_variable] <- unclass(d_self_anonymised[, current_variable])
-  #   }
-  # }
-  
-#  d_self_anonymised <- d_self_anonymised %>% select(new_id,wave_0, date_DD_0, date_MM_0, date_YYYY_0,gender_0, sex, age_0, age_group,job, school, student_nursery, student_school, student_college, student_university, bundesland_0, hh_type_0, hh_p_excl_0, (starts_with("Q7"))) ####CAVE to do => later also include date, sex, Q74
-  
+
+  #dataset1:d_self-
   d1 <- as.data.frame(names(d_self_anonymised))
   names(d1) <- "variable"
   d1$wave <- WAVE
@@ -709,41 +692,24 @@ for(current_file in DATA) {
   d1$included <- NA_character_
   d_self_anonymised$hh_p_excl_0 <- as.integer(as.character(d_self_anonymised$hh_p_excl_0))
   for(current_column in 1:length(names(d_self_anonymised))) {
-    d1$included[current_column] <- paste0(class(d_self_anonymised[, current_column]),
-                                          collapse = ", ")
+    d1$included[current_column] <- paste0(class(d_self_anonymised[, current_column]),collapse = ", ")
   }  
   
   # place_12 = "An einem anderen Ort (bitte angeben)" -> renamed place_oth
-  dt_hh_anonymised$place_12 <- NULL  
-  # for(current_variable in names(dt_hh_anonymised)) {
-  #   if(class(dt_hh_anonymised[, current_variable])[1] %in% c("factor", "haven_labelled")) { 
-  #     dt_hh_anonymised[, current_variable] <- unclass(dt_hh_anonymised[, current_variable])
-  #   }
-  # }
+  # dt_hh_anonymised$place_12 <- NULL  
   
+  d2 <- as.data.frame(names(dt_hh_anonymised))
+  names(d2) <- "variable"
+  d2$wave <- WAVE
+  d2$dataset <- "dt_hh"
+  d2$included <- NA_character_
+  for(current_column in 1:length(names(dt_hh_anonymised))) {
+    d2$included[current_column] <- paste0(class(dt_hh_anonymised[, current_column]),collapse = ", ")
+  }  
   
-#dt_hh_anonymised <- dt_hh_anonymised %>% select(new_id,contact_id, age_group, sex, job, school, starts_with("student_"), time_before_COV, skin, starts_with("place_"), time_hh, time_mm, hh_met_this_day)
-  
-d2 <- as.data.frame(names(dt_hh_anonymised))
-names(d2) <- "variable"
-d2$wave <- WAVE
-d2$dataset <- "dt_hh"
-d2$included <- NA_character_
-for(current_column in 1:length(names(dt_hh_anonymised))) {
-  d2$included[current_column] <- paste0(class(dt_hh_anonymised[, current_column]),
-                                          collapse = ", ")
-}  
-  
-#dt_outside_anonymised <- dt_outside_anonymised %>% select(new_id,contact_id, age_group, sex, relation, time_before_COV, skin, starts_with("place_"), time_hh, time_mm)
-
+#dataset3:dt_outside
   # place_12 = "An einem anderen Ort (bitte angeben)" -> renamed place_oth
-  dt_outside_anonymised$place_12 <- NULL
-  # for(current_variable in names(dt_outside_anonymised)) {
-  #   if(class(dt_outside_anonymised[, current_variable])[1] %in% c("factor", "haven_labelled")) { 
-  #     dt_outside_anonymised[, current_variable] <- unclass(dt_outside_anonymised[, current_variable])
-  #   }
-  # }
-  
+  # dt_outside_anonymised$place_12 <- NULL
   d3 <- as.data.frame(names(dt_outside_anonymised))
   names(d3) <- "variable"
   d3$wave <- WAVE
@@ -756,6 +722,7 @@ for(current_column in 1:length(names(dt_hh_anonymised))) {
   
   aux <- merge(d1, d2, all = TRUE)
   aux <- merge(aux, d3, all = TRUE)
+  aux$n_variable <- dim(d1)[1] # to know how many questions/variables in each wave
   
   if(counter == 1) {
     info_long <- aux
@@ -765,40 +732,35 @@ for(current_column in 1:length(names(dt_hh_anonymised))) {
   rm(d1, d2, d3, aux, d_self_anonymised, dt_hh_anonymised, dt_outside_anonymised)
 }
 
+info_long1 = info_long %>% filter(variable=="age_0")#any variable possible
+info_long <- info_long %>% select (-c(n_variable)) # delete n_variable created above
 info_wide <- spread(info_long, wave, included)
+
+
+# write.csv(info_wide,paste0(path_data,"/info_wave_1-13.csv"))
 
 ```
 
 ##new questionaire
 
 ```{r Data information new questionnaire, i.e. wave 14 onwards, results='markup', comment=""}
-# 
-# DATA_new <- list.files(path = "C:/Users/jaeger/Desktop/vom server/COVID_Polymod/Data/anonymized/currently_analysed/new_questionnaire/",
-#                    pattern = "RData",
-#                    full.names = TRUE)
 
-DATA_new <- list.files(path = "C:/Users/huynh/sciebo/NRW_descriptive/COVIMOD/wave 1 to 32/new_questionnaire",
-                       pattern = "RData",
-                       full.names = TRUE)
+DATA_new <- list.files(path = paste0(path_data,"/new_questionnaire"),
+                   pattern = "RData",
+                   full.names = TRUE)
 
 # all files must have the same structure:
-## d_self_anonymised
-## dt_hh_anonymised
-## dt_outside_anonymised
 counter <- 0
 for(current_file in DATA_new) {
   counter <- counter + 1
   load(current_file, .GlobalEnv) # , verbose=TRUE)
   WAVE <- current_file
   
-  # WAVE <- sub("C:/Users/jaeger/Desktop/vom server/COVID_Polymod/Data/anonymized/currently_analysed/new_questionnaire/complete wave ", "", WAVE)
-  
-  WAVE <- sub("C:/Users/huynh/sciebo/NRW_descriptive/COVIMOD/wave 1 to 32/new_questionnaire/complete wave ", "", WAVE)
+  WAVE <- sub(paste0(path_data,"/new_questionnaire/complete wave "), "", WAVE)
   WAVE <- as.integer(sub("_anonymised[.]RData", "", WAVE))
   print(WAVE)
-  
-  #  d_self_anonymised <- d_self_anonymised %>% select(new_id,wave_0, date_DD_0, date_MM_0, date_YYYY_0,gender_0, sex, age_0, age_group,job, school, bundesland_0, hh_p_incl_0, starts_with("Q7"), starts_with("Q8")) ####CAVE to do => later also include date, sex, Q74, etc
-  
+ 
+  #dataset1: d_self
   d1 <- as.data.frame(names(d_self_anonymised))
   names(d1) <- "variable"
   d1$wave <- WAVE
@@ -809,38 +771,36 @@ for(current_file in DATA_new) {
                                           collapse = ", ")
   }
   
-  dt_hh_anonymised$place_12 <- NULL
-  # dt_hh_anonymised <- dt_hh_anonymised %>% select(new_id,contact_id, age_group, sex, job, school, starts_with("student_"), time_before_COV, starts_with("skin"), starts_with("place_"), con_time, hh_met_this_day)
   
-  
-  
+
+  #dataset2:dt_hh
+  dt_hh_anonymised$place_12 <- NULL # to be deleted?
   d2 <- as.data.frame(names(dt_hh_anonymised))
   names(d2) <- "variable"
   d2$wave <- WAVE
   d2$dataset <- "dt_hh"
   d2$included <- NA_character_
   for(current_column in 1:length(names(dt_hh_anonymised))) {
-    d2$included[current_column] <- paste0(class(dt_hh_anonymised[, current_column]),
-                                          collapse = ", ")
+    d2$included[current_column] <- paste0(class(dt_hh_anonymised[, current_column]),collapse = ", ")
   }
   
-  # place_12 = "An einem anderen Ort (bitte angeben)" -> renamed place_oth
+
+  
+  #dataset3:dt_outside_
+    # # place_12 = "An einem anderen Ort (bitte angeben)" -> renamed place_oth
   dt_outside_anonymised$place_12 <- NULL
-  
-  #  dt_outside_anonymised2 <- dt_outside_anonymised %>% select(new_id,contact_id, age_group, sex, relation, relation_child, time_before_COV, starts_with("skin"), starts_with("place_"), con_time)
-  
   d3 <- as.data.frame(names(dt_outside_anonymised))
   names(d3) <- "variable"
   d3$wave <- WAVE
   d3$dataset <- "dt_outside"
   d3$included <- NA_character_
   for(current_column in 1:length(names(dt_outside_anonymised))) {
-    d3$included[current_column] <- paste0(class(dt_outside_anonymised[, current_column]),
-                                          collapse = ", ")
+    d3$included[current_column] <- paste0(class(dt_outside_anonymised[, current_column]),collapse = ", ")
   }
   
   aux <- merge(d1, d2, all = TRUE)
   aux <- merge(aux, d3, all = TRUE)
+  aux$n_variable <- dim(d1)[1] # to know how many questions/variables in each wave
   
   if(counter == 1) {
     info_long_new <- aux
@@ -850,7 +810,18 @@ for(current_file in DATA_new) {
   rm(d1, d2, d3, aux, d_self_anonymised, dt_hh_anonymised, dt_outside_anonymised)
 }
 
+info_long_new1 = info_long_new %>% filter(variable=="age_0")#any variable possible
+info_long_new <- info_long_new %>% select (-c(n_variable)) # delete n_variable created above
 info_wide_new <- spread(info_long_new, wave, included)
+
+####
+info_long_all1 <- merge(info_long_new1,info_long1, all = TRUE)
+ggplot(info_long_all1,aes(wave, n_variable))+
+  geom_point()+
+  ggtitle("Number of variables in each wave (d_self dataset)")+
+  theme(plot.title = element_text(face = "bold",hjust = 0.5))
+
+# write.csv(info_wide_new,paste0(path_data,"/info_wave_14-32.csv"))
 
 ```
 
@@ -865,33 +836,24 @@ info_wide_new <- spread(info_long_new, wave, included)
 counter <- 0
 for(current_file in DATA) {
   counter <- counter + 1
-  
-  ##for each wave check manually
-  # current_file <- "C:/Users/huynh/sciebo/NRW_descriptive/COVIMOD/data_anonymised/old_questionnaire/complete wave 8_anonymised.RData"
-  
   load(current_file, .GlobalEnv)
   WAVE <- current_file
-  WAVE <- sub("C:/Users/huynh/sciebo/NRW_descriptive/COVIMOD/wave 1 to 32/old_questionnaire/complete wave ", "", WAVE)
+  WAVE <- sub(paste0(path_data,"/old_questionnaire/complete wave "), "", WAVE)
   WAVE <- as.integer(sub("_anonymised[.]RData", "", WAVE))  
   
-  print(WAVE)
-  print(sum(is.na(d_self_anonymised$new_id)))
+ #dataset1: d_self
   d_self_anonymised$wave <- WAVE
   d_self_anonymised$questionnaire <- "old"
-  #  d_self_anonymised <- d_self_anonymised %>% select(new_id,wave, date_DD_0, date_MM_0, date_YYYY_0,gender_0, sex, age_0, age_group,job, school, student_nursery, student_school, student_college, student_university, bundesland_0, hh_type_0, hh_p_excl_0, (starts_with("Q7")), questionnaire) ####CAVE to do => later also include date, sex, Q74
-  
+
   d_self_anonymised$hh_p_excl_0 <- as.integer(as.character(d_self_anonymised$hh_p_excl_0))
-  d_self_anonymised$hh_p_excl_0[which(d_self_anonymised$hh_p_excl_0 > 11)] <- 11
+  d_self_anonymised$hh_p_excl_0[which(d_self_anonymised$hh_p_excl_0 > 11)] <- 11 ##hh contact is less likely >11
   d_self_anonymised$contact_id <- as.integer(as.character(d_self_anonymised$contact_id))
-  d_self_anonymised$Q21 <- as.integer(as.character(d_self_anonymised$Q21))
-  
-  # Q74_0 gets additional label ("I did not have any contacts") during waves
-  # 1        I individually included every person I had contact with.
-  # 2 I did not individually include every person I had contact with.
-  # 3                                    I did not have any contacts.
+  #Q21: hh member name #why it is all 1S
+  d_self_anonymised$Q21 <- as.integer(as.character(d_self_anonymised$Q21))# origin is integer
   if(WAVE >= 3) { # new variable in wave 3
-    d_self_anonymised$Q74_0 <- as.integer(as.character(d_self_anonymised$Q74_0)) 
+    d_self_anonymised$Q74_0 <- as.integer(as.character(d_self_anonymised$Q74_0))
   }
+  
   for(current_variable in names(d_self_anonymised)) {
     if(class(d_self_anonymised[, current_variable])[1] %in% c("factor")) { 
       d_self_anonymised[, current_variable] <- as.character(d_self_anonymised[, current_variable])
@@ -900,11 +862,11 @@ for(current_file in DATA) {
       d_self_anonymised[, current_variable] <- as.integer(d_self_anonymised[, current_variable])
     }
   }
-  
+  #dataset2:dt_hh
   dt_hh_anonymised$wave <- WAVE
   dt_hh_anonymised$questionnaire <- "old"
-  #  dt_hh_anonymised <- dt_hh_anonymised %>% select(new_id,wave, contact_id, age_group, sex, job, school, starts_with("student_"), time_before_COV, skin, starts_with("place_"), time_hh, time_mm, hh_met_this_day)
-  dt_hh_anonymised$place_12 <- NULL
+  # dt_hh_anonymised$place_12 <- NULL
+  
   dt_hh_anonymised$contact_id <- as.double(as.character(dt_hh_anonymised$contact_id))
   for(current_variable in names(dt_hh_anonymised)) {
     if(class(dt_hh_anonymised[, current_variable])[1] %in% c("factor")) { 
@@ -915,10 +877,11 @@ for(current_file in DATA) {
     }
   }
   
+  #dataset3:dt_outside
   dt_outside_anonymised$wave <- WAVE
   dt_outside_anonymised$questionnaire <- "old"
-  #  dt_outside_anonymised <- dt_outside_anonymised %>% select(new_id,contact_id, wave, age_group, sex, relation, time_before_COV, skin, starts_with("place_"), time_hh, time_mm)
-  dt_outside_anonymised$place_12 <- NULL
+  # dt_outside_anonymised$place_12 <- NULL
+  
   dt_outside_anonymised$contact_id <- as.integer(as.character(dt_outside_anonymised$contact_id))
   for(current_variable in names(dt_outside_anonymised)) {
     if(class(dt_outside_anonymised[, current_variable])[1] %in% c("factor")) { 
@@ -954,26 +917,16 @@ for(current_file in DATA) {
 counter <- 0
 for(current_file in DATA_new) {
   counter <- counter + 1
-  # #for each wave check manually
-  # current_file <- "C:/Users/huynh/sciebo/NRW_descriptive/COVIMOD/data_anonymised/new_questionnaire/complete wave 27_anonymised.RData"
- 
   load(current_file, .GlobalEnv)
   WAVE <- current_file
-  WAVE <- sub("C:/Users/huynh/sciebo/NRW_descriptive/COVIMOD/wave 1 to 32/new_questionnaire/complete wave ", "", WAVE)
+  WAVE <- sub(paste0(path_data,"/new_questionnaire/complete wave "), "", WAVE)
   WAVE <- as.integer(sub("_anonymised[.]RData", "", WAVE))  
   
-  print(WAVE)
-  print(sum(is.na(d_self_anonymised$new_id)))
+ #dataset1:d_self
   d_self_anonymised$wave <- WAVE
   d_self_anonymised$questionnaire<-"new"
-  ######################### on/off
-  # d_self_anonymised <- d_self_anonymised %>% select(new_id,wave, date_DD_0, date_MM_0, date_YYYY_0,gender_0, sex, age_0, age_group,job, school, bundesland_0, hh_p_incl_0, starts_with("Q7"), starts_with("Q8"), questionnaire) ####CAVE to do => later also include date, sex, Q74, etc
-  #########################
-
-  #FOR NOW!!! NEED TO CHANGE THAT!!!
-  #d_self_anonymised2 <- d_self_anonymised %>% select(new_id, wave, date_DD_0, date_MM_0, date_YYYY_0,gender_0, sex, age_0, age_group,job, school, bundesland_0, hh_p_incl_0, starts_with("Q7"), starts_with("Q8"), number_d, questionnaire) ####CAVE to do => later also include date, sex, Q74, etc
   
-  
+  ##class not the same across wave
   for(current_variable in names(d_self_anonymised)) {
     if(class(d_self_anonymised[, current_variable])[1] %in% c("factor")) { 
       d_self_anonymised[, current_variable] <- as.character(d_self_anonymised[, current_variable])
@@ -983,16 +936,13 @@ for(current_file in DATA_new) {
     }
   }
   
+  #dataset2:dt_hh
   dt_hh_anonymised$wave <- WAVE
   dt_hh_anonymised$questionnaire<-"new"
+  # dt_hh_anonymised$place_12 <- NULL #why add this variable?
   
-  ################################# on/off
- # dt_hh_anonymised <- dt_hh_anonymised %>% select(new_id,contact_id, wave, age_group, sex, job,  school, starts_with("student_"), time_before_COV, starts_with("skin"), starts_with("place_"), con_time, hh_met_this_day)
-  ##############################
-
-  dt_hh_anonymised$place_12 <- NULL
+  ##class not the same across wave
   dt_hh_anonymised$contact_id <- as.double(as.character(dt_hh_anonymised$contact_id))
- 
   for(current_variable in names(dt_hh_anonymised)) {
     if(class(dt_hh_anonymised[, current_variable])[1] %in% c("factor")) { 
       dt_hh_anonymised[, current_variable] <- as.character(dt_hh_anonymised[, current_variable])
@@ -1002,15 +952,25 @@ for(current_file in DATA_new) {
     }
   }
   
+  #dataset3:dt_outside
   dt_outside_anonymised$wave <- WAVE
   dt_outside_anonymised$questionnaire<-"new"
-  ###########################on/off
- # dt_outside_anonymised2 <- dt_outside_anonymised %>% select(new_id,contact_id, wave, age_group, sex, relation, relation_child, time_before_COV, starts_with("skin"), starts_with("place_"), con_time)
- ###############################
-
-  dt_outside_anonymised$place_12 <- NULL
+  # dt_outside_anonymised$place_12 <- NULL
+  
+  ##class not the same across wave
   dt_outside_anonymised$contact_id <- as.integer(as.character(dt_outside_anonymised$contact_id))
-
+  dt_hh_anonymised$contact_id <- as.integer(dt_hh_anonymised$contact_id)#in all data set is numeric, but it does not affect...
+  dt_outside_anonymised$contact_id <- as.integer(dt_outside_anonymised$contact_id)
+  dt_outside_anonymised$contact <- as.integer(dt_outside_anonymised$contact)
+  # why all variables below is NAs?????
+  d_self_anonymised$q79a <- as.integer(d_self_anonymised$q79a)
+  d_self_anonymised$q79c <- as.integer(d_self_anonymised$q79c)
+  d_self_anonymised$Q80a <- as.integer(d_self_anonymised$Q80a)
+  d_self_anonymised$Q80c <- as.integer(d_self_anonymised$Q80c)
+  d_self_anonymised$Q81a <- as.integer(d_self_anonymised$Q81a)
+  d_self_anonymised$Q81c <- as.integer(d_self_anonymised$Q81c)
+  d_self_anonymised$Q21_scale <- as.character(d_self_anonymised$Q21_scale)
+  
   for(current_variable in names(dt_outside_anonymised)) {
     if(class(dt_outside_anonymised[, current_variable])[1] %in% c("factor")) { 
       dt_outside_anonymised[, current_variable] <- as.character(dt_outside_anonymised[, current_variable])
@@ -1022,29 +982,22 @@ for(current_file in DATA_new) {
 
 skin_integer <- c("skin_skin_to_skin","skin_kept_dist_2m" ,"skin_kept_dist_1m", "skin_dist_less_1m", "skin_wore_mask", "skin_washsan_bef" , "skin_washsan_aft", "skin_prefer_not_to_say", "skin_none_of_these", "skin_dont_know")
   
-  dt_hh_anonymised$contact_id <- as.integer(dt_hh_anonymised$contact_id)#in all data set is numeric, but it does not affect...
   
-  dt_outside_anonymised$contact_id <- as.integer(dt_outside_anonymised$contact_id)
-  dt_outside_anonymised$contact <- as.integer(dt_outside_anonymised$contact)
-
-  # all variables below is NAs?????
-  d_self_anonymised$q79a <- as.integer(d_self_anonymised$q79a)
-  d_self_anonymised$q79c <- as.integer(d_self_anonymised$q79c)
-  d_self_anonymised$Q80a <- as.integer(d_self_anonymised$Q80a)
-  d_self_anonymised$Q80c <- as.integer(d_self_anonymised$Q80c)
-  d_self_anonymised$Q81a <- as.integer(d_self_anonymised$Q81a)
-  d_self_anonymised$Q81c <- as.integer(d_self_anonymised$Q81c)
-  d_self_anonymised$Q21_scale <- as.character(d_self_anonymised$Q21_scale)
   
-     d_self_all <- bind_rows(d_self_all, d_self_anonymised)
+    d_self_all <- bind_rows(d_self_all, d_self_anonymised)
     dt_hh_all <- bind_rows(dt_hh_all, dt_hh_anonymised)
     dt_outside_all <- bind_rows(dt_outside_all, dt_outside_anonymised)
 
-
-
-
   rm(d_self_anonymised, dt_hh_anonymised, dt_outside_anonymised)
 }
+
+```
+
+# check data in those variables the data class is not matched across wave
+What is the meaning of data class "NA"
+
+```{r}
+table1(~hh_confirm + hh_remove + emp_status_0 | as.factor(wave), data=d_self_all)
 
 ```
 
@@ -1052,11 +1005,11 @@ skin_integer <- c("skin_skin_to_skin","skin_kept_dist_2m" ,"skin_kept_dist_1m", 
 Variable: bundesland_0 == "Nordrhein-Westfalen"
 
 ```{r}
-d_self_all<- d_self_all%>%filter(bundesland_0 == "Nordrhein-Westfalen")
+d_self_all<- d_self_all%>%filter(bundesland_0 == "Nordrhein-Westfalen")#upto wave 32:12360 obs
 dt_outside_all<-  dt_outside_all[dt_outside_all$new_id %in% d_self_all$new_id, ] # subset NRW
 dt_hh_all<- dt_hh_all[dt_hh_all$new_id %in% d_self_all$new_id, ] # subset NRW
 
-obs_wave_upto21 <- 1560+1356+1081+1890+1615+1496+1207+1022+869+739+1499+1500+1500+1490+1500+1499+997+1499+1498+1493+2468+2441+2485+2468+2480+2502+2492+2493+2487+2487+2489+2490 # 32 wave 
+# obs_wave_upto32 <- 1560+1356+1081+1890+1615+1496+1207+1022+869+739+1499+1500+1500+1490+1500+1499+997+1499+1498+1493+2468+2441+2485+2468+2480+2502+2492+2493+2487+2487+2489+2490 # 32 wave
 
 
 ```
@@ -1110,7 +1063,7 @@ table1(~Q75_u18_work + Q75_1864_work + Q75_1864_work +
   
 ```
 
-# Data Cleaining_Tim
+# Data Cleaining
 ##dt_outside_all
 
 ### check levels
@@ -1121,15 +1074,16 @@ table1(~Q75_u18_work + Q75_1864_work + Q75_1864_work +
 # or 1=YES)
 
 ## create dummy (smaller dataset with dt_outside_all)
-dummy <- d_self_all %>% select(new_id, wave, age_group)
-dummynames<-c("new_id", "wave","age_group_participant")
+dummy <- d_self_all %>% select(new_id, wave, age_group, age_0)#
+#age_0 with NAs value => was imputed into agegroup without NAs?
+dummynames<-c("new_id", "wave","age_group_participant","age_participant")
 colnames(dummy) <- dummynames
-dummy <- merge(dummy, dt_outside_all, by=c("new_id", "wave"), all.y=T)
+dummy <- merge(dummy, dt_outside_all, by=c("new_id", "wave"), all.y=T) 
 
-dummy$place_oth <- as.numeric(dummy$place_oth)# why place_oth is all NA ?
-dummy$place_oth[is.na(dummy$place_oth)] <- 0 #change to 0
+dummy$place_oth <- as.numeric(dummy$place_oth)
+dummy$place_oth[is.na(dummy$place_oth)] <- 0 #change to 0 ## = No because no place was indicated?
 
-# the other places can take "yes", "no" and NA, now change to "yes"=1, "no"=0
+# a specific place can take "yes", "no" and NA, now change to "yes"=1, "no"=0
 dummy$place_home_own<-ifelse(dummy$place_home_own=="Yes",1,0)
 dummy$place_home_else<-ifelse(dummy$place_home_else=="Yes",1,0)
 dummy$place_work<-ifelse(dummy$place_work=="Yes",1,0)
@@ -1151,7 +1105,6 @@ dummy$place_outside<-ifelse(dummy$place_outside=="Yes",1,0)
 
 
 ###remove <15 yrs
-Age bezieht sich auf das Alter der arbeitenden Person, daher Personen <15 raus
 Age refers to the age of the working person, therefore people <15 out
 ```{r remove work contacts that are <15 years old dt_outside_all, results='hide', error = FALSE, warning=FALSE, message=FALSE}
                 
@@ -1214,7 +1167,7 @@ rm(dummy) #delete dummy and get the final "dt_outside"
 dummy <- d_self_all %>% select(new_id, wave, age_group)
 dummynames<-c("new_id","wave", "age_group_participant")
 colnames(dummy) <- dummynames
-dummy <- merge(dummy, dt_hh_all, by=c("new_id", "wave"), all.y=T)
+dummy <- merge(dummy, dt_hh_all, by=c("new_id", "wave"), all.y=T) # is enough specificity level ???
 
 # dummy$place_oth <- as.factor(dummy$place_oth) #change character to factor##why?
 
@@ -1295,25 +1248,26 @@ rm(dummy) #delete dummy and get final "dt_hh"
 
 ```
 
-This chunk deals with the problem of different hh_p_inc variables. 
+###hh_p_inc variables
+This chunk deals with the problem of different hh_p_inc variables???? 
 
- Variable "hh_p_incl_new_0" does not exist!!!!
 ```{r merge households}
-# Haushaltsgrößen
-d_self_all <- d_self_all %>% mutate(hh_p_incl_0 = ifelse(wave > 0, (hh_p_incl_0+1), hh_p_incl_0))
-
-#reorder
-d_self_all <- d_self_all %>% 
-relocate(hh_p_incl_new_0, .after = hh_p_incl_0)
-
-#merge #hh_p_incl_0 & #hh_p_incl_new_0 at position with NAs
-d_self_all <- d_self_all %>% 
-  mutate(hh_p_incl_0 = replace(hh_p_incl_0, is.na(hh_p_incl_0), hh_p_incl_new_0[2985:5679]))
-
-#drop variable since we do not need anymore
-d_self_all$hh_p_incl_new_0 <- NULL
-
-d_self_all$age_group_new <- d_self_all$age_group
+# # Household sizes
+# d_self_all <- d_self_all %>% mutate(hh_p_incl_0 = ifelse(wave > 0, (hh_p_incl_0+1), hh_p_incl_0)) # why +1
+# 
+# #reorder
+# # d_self_all <- d_self_all %>% 
+# # relocate(hh_p_incl_new_0, .after = hh_p_incl_0)
+# 
+# 
+# #merge #hh_p_incl_0 & #hh_p_incl_new_0 at position with NAs
+# d_self_all <- d_self_all %>% 
+#   mutate(hh_p_incl_0 = replace(hh_p_incl_0, is.na(hh_p_incl_0), hh_p_incl_new_0[2985:5679]))
+# 
+# #drop variable since we do not need anymore
+# d_self_all$hh_p_incl_new_0 <- NULL
+# 
+# d_self_all$age_group_new <- d_self_all$age_group
 
 ```
   
@@ -1325,21 +1279,22 @@ d_self_all$age_group_new <- d_self_all$age_group
 dt_hh_all <- dt_hh_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == "Yes", na.rm=TRUE))
 table(dt_hh_all$place_multiple)
 
-dt_hh_all$place_multiple <- as.integer(dt_hh_all$place_multiple >= 2) # sum of at least 2 places
+# dt_hh_all$place_multiple <- as.integer(dt_hh_all$place_multiple >= 2) # sum of at least 2 places ## only 0,1 or NA
 
 dt_outside_all <- dt_outside_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == "Yes", na.rm=TRUE))
 
 table(dt_outside_all$place_multiple)
 
-dt_outside_all$place_multiple <- as.integer(dt_outside_all$place_multiple >= 2)
+# dt_outside_all$place_multiple <- as.integer(dt_outside_all$place_multiple >= 2)
 
 
 ```
 
-### contacts per ID and wave
-
+# contacts per ID and wave
+warning: change all.x=T instead of all =T where merge function was used
 ```{r Summarize number of contacts per ID and wave}
 # All contacts (inside and outside)
+## Function used here can be found in function chunk
 hh_contacts <- hh_contact_number(dt_hh_all, new_id, wave)
 outside_contacts <- non_hh_contact_number(dt_outside_all, new_id, wave)
 
@@ -1347,16 +1302,19 @@ nrow(d_self_all)
 nrow(hh_contacts)      # must be <= nrow(d_self_all)
 nrow(outside_contacts) # must be <= nrow(d_self_all)
 
-d_all_wide <- merge(d_self_all, hh_contacts, by=c("new_id", "wave"), all=T)
+# #one obs(new_id) per wave (wave) may have both hh_contacts and outside_contacts => merged data can be larger than either original files
+
+d_all_wide <- merge(d_self_all, hh_contacts, by=c("new_id", "wave"), all.x =T) #all.x: more variable but less row
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+
 
 # Inside contacts
-aux_hh <- dt_hh_all %>% filter(place_inside=="Yes")
+aux_hh <- dt_hh_all %>% filter(place_inside==1) #1 = Yes, 0=No
 hh_contacts <- hh_contact_number(aux_hh, new_id, wave)
 
-aux_outside <- dt_outside_all %>% filter(place_inside=="Yes")
+aux_outside <- dt_outside_all %>% filter(place_inside==0)
 outside_contacts <- non_hh_contact_number(aux_outside, new_id, wave)
 
 nrow(d_self_all)
@@ -1367,19 +1325,19 @@ nrow(outside_contacts) # must be <= nrow(d_self_all)
 names(hh_contacts) <- sub("_contact_n", "_contact_n_inside", names(hh_contacts))
 names(outside_contacts) <- sub("_contact_n", "_contact_n_inside", names(outside_contacts))
 
-d_all_wide <- merge(d_all_wide, hh_contacts, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, hh_contacts, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
 
 names(d_all_wide)
 
 
 # Outside contacts
-aux_hh <- dt_hh_all %>% filter(place_outside=="Yes")
+aux_hh <- dt_hh_all %>% filter(place_outside==1)#1 = Yes, 0=No
 hh_contacts <- hh_contact_number(aux_hh, new_id, wave)
 
-aux_outside <- dt_outside_all %>% filter(place_outside=="Yes")
+aux_outside <- dt_outside_all %>% filter(place_outside==1)
 outside_contacts <- non_hh_contact_number(aux_outside, new_id, wave)
 
 nrow(d_self_all)
@@ -1390,10 +1348,10 @@ nrow(outside_contacts) # must be <= nrow(d_self_all)
 names(hh_contacts) <- sub("_contact_n", "_contact_n_outside", names(hh_contacts))
 names(outside_contacts) <- sub("_contact_n", "_contact_n_outside", names(outside_contacts))
 
-d_all_wide <- merge(d_all_wide, hh_contacts, by=c("new_id", "wave"), all=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+d_all_wide <- merge(d_all_wide, hh_contacts, by=c("new_id", "wave"), all.x=T)
+if(nrow(d_all_wide) < nrow(d_self_all)) { message("Less rows than expected!") }
+d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all.x=T)
+if(nrow(d_all_wide) < nrow(d_self_all)) { message("Less rows than expected!") }
 
 # any NA in _contact_n means zero contacts in that setting
 for(current_variable in names(d_all_wide)[grep("contact_n", names(d_all_wide))]) {
@@ -1408,62 +1366,6 @@ d_all_wide$all_contact_n_inside <-
   d_all_wide$hh_contact_n_inside + d_all_wide$non_hh_contact_n_inside
 d_all_wide$all_contact_n_outside <- 
   d_all_wide$hh_contact_n_outside + d_all_wide$non_hh_contact_n_outside
-
-
-
-# # duration of contact (ONLY NON-HH)
-# #first categorise
-# dt_outside_all$contact_duration_minutes <- dt_outside_all$time_hh * 60 + dt_outside_all$time_mm
-# dt_outside_all$contact_duration_minutes[which(dt_outside_all$contact_duration_minutes > 24 * 60)] <- 24 * 60
-# dt_outside_all$contact_duration_minutes_cat[dt_outside_all$contact_duration_minutes<5]<-"<5"
-# dt_outside_all$contact_duration_minutes_cat[dt_outside_all$contact_duration_minutes>4 & dt_outside_all$contact_duration_minutes<15]<-">=5 & <15"
-# dt_outside_all$contact_duration_minutes_cat[dt_outside_all$contact_duration_minutes>14 & dt_outside_all$contact_duration_minutes<60]<-">=15 & <60"
-# dt_outside_all$contact_duration_minutes_cat[dt_outside_all$contact_duration_minutes>59 & dt_outside_all$contact_duration_minutes<240]<-">=60 & <240"
-# dt_outside_all$contact_duration_minutes_cat[dt_outside_all$contact_duration_minutes>239]<-">=240"
-# 
-# dt_outside_all$contact_duration_minutes_cat <- factor(dt_outside_all$contact_duration_minutes_cat, levels = c('<5','>=5 & <15','>=15 & <60','>=60 & <240','>=240'))
-# 
-# aux_dur_5 <- dt_outside_all %>% filter(contact_duration_minutes_cat=="<5")
-# dur_5_contacts <- non_hh_contact_number(aux_dur_5, new_id, wave)
-# aux_dur_5_15 <- dt_outside_all %>% filter(contact_duration_minutes_cat==">=5 & <15")
-# dur_5_15_contacts <- non_hh_contact_number(aux_dur_5_15, new_id, wave)
-# aux_dur_15_60 <- dt_outside_all %>% filter(contact_duration_minutes_cat==">=15 & <60")
-# dur_15_60_contacts <- non_hh_contact_number(aux_dur_15_60, new_id, wave)
-# aux_dur_60_240 <- dt_outside_all %>% filter(contact_duration_minutes_cat==">=60 & <240")
-# dur_60_240_contacts <- non_hh_contact_number(aux_dur_60_240, new_id, wave)
-# aux_dur_240 <- dt_outside_all %>% filter(contact_duration_minutes_cat==">=240")
-# dur_240_contacts <- non_hh_contact_number(aux_dur_240, new_id, wave)
-# 
-# nrow(d_self_all)
-# nrow(dur_5_contacts) # must be <= nrow(d_self_all)
-# nrow(dur_5_15_contacts) # must be <= nrow(d_self_all)
-# nrow(dur_15_60_contacts) # must be <= nrow(d_self_all)
-# nrow(dur_60_240_contacts) # must be <= nrow(d_self_all)
-# nrow(dur_240_contacts) # must be <= nrow(d_self_all)
-# 
-# # rename
-# names(dur_5_contacts) <- sub("_contact_n", "_contact_n_dur_5", names(dur_5_contacts))
-# names(dur_5_15_contacts) <- sub("_contact_n", "_contact_n_dur_5_15", names(dur_5_15_contacts))
-# names(dur_15_60_contacts) <- sub("_contact_n", "_contact_n_dur_15_60", names(dur_15_60_contacts))
-# names(dur_60_240_contacts) <- sub("_contact_n", "_contact_n_dur_60_240", names(dur_60_240_contacts))
-# names(dur_240_contacts) <- sub("_contact_n", "_contact_n_dur_240", names(dur_240_contacts))
-# 
-# d_all_wide <- merge(d_all_wide, dur_5_contacts, by=c("new_id", "wave"), all=T)
-# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-# d_all_wide <- merge(d_all_wide, dur_5_15_contacts, by=c("new_id", "wave"), all=T)
-# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-# d_all_wide <- merge(d_all_wide, dur_15_60_contacts, by=c("new_id", "wave"), all=T)
-# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-# d_all_wide <- merge(d_all_wide, dur_60_240_contacts, by=c("new_id", "wave"), all=T)
-# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-# d_all_wide <- merge(d_all_wide, dur_240_contacts, by=c("new_id", "wave"), all=T)
-# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-# 
-# 
-# # any NA in _contact_n means zero contacts in that setting
-# for(current_variable in names(d_all_wide)[grep("contact_n", names(d_all_wide))]) {
-#   d_all_wide[is.na(d_all_wide[, current_variable]), current_variable] <- 0
-# }
 
 
 #################################################################################################
@@ -1529,15 +1431,15 @@ dummy_240 <- dt_outside_all %>%
 
 
 # merge with d_all_wide
-d_all_wide <- merge(d_all_wide, dummy_0_4, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, dummy_0_4, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, dummy_5_14, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, dummy_5_14, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, dummy_15_59, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, dummy_15_59, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, dummy_60_239, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, dummy_60_239, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, dummy_240, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, dummy_240, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
 
 
@@ -1598,15 +1500,15 @@ relation_work <- dt_outside_all %>%
 
 
 # merge with d_all_wide
-d_all_wide <- merge(d_all_wide, relation_family, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, relation_family, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, relation_friend, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, relation_friend, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, relation_other, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, relation_other, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, relation_school, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, relation_school, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, relation_work, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, relation_work, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
 
 
@@ -1663,17 +1565,17 @@ before_never <- dt_outside_all %>%
 
 
 # merge with d_all_wide
-d_all_wide <- merge(d_all_wide, before_once_week, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, before_once_week, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, before_once_month, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, before_once_month, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, before_2_weeks, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, before_2_weeks, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, before_every_day, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, before_every_day, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, before_less_month, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, before_less_month, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, before_never, by=c("new_id", "wave"), all=T)
+d_all_wide <- merge(d_all_wide, before_never, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
 
 # any NA in _contact_n means zero contacts in that setting
@@ -1684,6 +1586,35 @@ for(current_variable in names(d_all_wide)[grep("contact_n", names(d_all_wide))])
 rm(before_once_week, before_once_month, before_2_weeks, before_every_day, before_less_month, before_never)
 
 table1::table1(~non_hh_before_onceweek_contact_n + non_hh_before_oncemonth_contact_n + non_hh_before_2weeks_contact_n + non_hh_before_everyday_contact_n + non_hh_before_lessmonth_contact_n + non_hh_before_never_contact_n | wave, data=d_all_wide)
+
+# plot different contacts
+ggplot(d_all_wide,aes(factor(wave)))+
+  geom_point(aes(y=non_hh_before_onceweek_contact_n),stat="summary",fun ="mean",col="red")+
+  geom_point(aes(y=non_hh_before_oncemonth_contact_n),stat="summary",fun ="mean", col ="blue")
+
+# plot mean contact
+ggplot(d_all_wide,aes(factor(wave),all_contact_n))+
+  # geom_line(aes(y=all_contact_n))+
+  stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95), fill="lightblue")+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean, color="red")
+
+#https://stackoverflow.com/questions/53180486/plotting-average-of-multiple-groups-across-time-in-ggplot2 (plot different group)
+
+sample_sum <- d_all_wide %>%
+  group_by(as.factor(wave)) %>%
+  summarize(mean = mean(all_contact_n),
+            sd   = sd(all_contact_n),
+            mean_p2sd = mean + 2 * sd,
+            mean_m2sd = mean - 2 * sd) %>%
+  ungroup()
+
+p <- ggplot(sample_sum %>%
+              gather(stat, all_contact_n, mean, mean_p2sd:mean_m2sd), 
+            aes(x = wave, y = all_contact_n)) + 
+  geom_line(aes(linetype = stat))
+p
 
 ```
 
@@ -2326,7 +2257,7 @@ ggsave(hh_part, width=10, height=7)
 
 ## Bundesland
 ```{r}
-table1(~bundesland_0|wave, data=df_unweighted)
+table1(~bundesland_0|wave, data=df_unweighted)# 
 table1(~bundesland_0, data=df_unweighted)
 
 ```
@@ -5339,15 +5270,15 @@ dt_outside_all_2 <- dt_outside_all[ , keeps, drop = FALSE]
 # final (mit dieser Variable arbeiten!)
 dt_outside_all_c <- rbind(dt_outside_all_2, group_contacts_all)
 
-#rename waves
-dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 1"] <- 1
-dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 2"] <- 2
-dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 3"] <- 3
-dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 4"] <- 4
-dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 5"] <- 5
-dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 6"] <- 6
-dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 7"] <- 7
-dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 8"] <- 8
+# #rename waves
+# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 1"] <- 1
+# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 2"] <- 2
+# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 3"] <- 3
+# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 4"] <- 4
+# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 5"] <- 5
+# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 6"] <- 6
+# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 7"] <- 7
+# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 8"] <- 8
 
 
 dt_outside_all_c$age_group[dt_outside_all_c$age_group == 0] <- "<1"
@@ -5448,7 +5379,7 @@ table1::table1(~age_group  |wave, dt_outside_all_c, caption = "Check")
 ```{r contact matrix wave 2 densely}
 # Variablen, die wir brauchen
 set.seed(123456789)
-wave_n <- 2
+wave_n <- 1
 
 part_matrix_den2 <- d_self_all %>% 
   select(new_id, wave, age_group)%>%
@@ -5532,23 +5463,26 @@ levels(melt_cm_den2$contact.age.group) <- list("0-14" = "[0,14)", "15-19" = "[14
 c_pattern <- ggplot(melt_cm_den2, aes(contact.age.group, Var1)) +
   geom_tile(aes(fill = value)) +
   coord_equal() +
-  ggtitle(paste0("Wave",wave_n, "(31/3/21 - 07/4/21)")) +
-  geom_text(aes(label=sprintf("%0.1f", round(value, digits = 2))), size = 2) +
-  scale_fill_gradient2(low = "#2000CD",
-                       mid = "white",
-                       high = "#D60C00", limits = c(0,4), midpoint = 2) +
+  ggtitle(paste0("Wave",wave_n)) +
+  geom_text(aes(label=sprintf("%0.1f", round(value, digits = 2))), size = 4) +
+  # scale_fill_gradient2(low = "#2000CD",
+  #                      mid = "white",
+                       # high = "#D60C00", limits = c(0,4), midpoint = 2) +
+  scale_fill_gradient2(low = "#fff7ec",
+                       # mid = "white",
+                       high = "#b30000",limits = c(0,4)) +
   guides(fill = guide_colourbar(barwidth = 0.5,
                                 barheight = 20, title = "Contacts")) +
   # theme(legend.position = "none")+
-  theme(plot.title = element_text(size = 6, face = "bold"))+
+  theme(plot.title = element_text(size = 12, face = "bold"))+
   theme(plot.title = element_text(hjust = 0.5)) +
   theme(axis.title.x=element_blank())+
   theme(axis.title.y=element_blank()) +
   theme(panel.background = element_blank()) +
   theme(axis.ticks.x = element_blank()) +
   theme(axis.ticks.y = element_blank()) +
-  theme(axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5)) +
-  theme(axis.text.y = element_text(size = 5))
+  theme(axis.text.x = element_text(size = 10, angle = 90, vjust = 0.5,face="bold") ) +
+  theme(axis.text.y = element_text(size = 10, face = "bold"))
 
 # 
 # #library(cowplot)
