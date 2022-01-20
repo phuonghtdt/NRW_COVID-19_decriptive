@@ -77,7 +77,7 @@ library(ggpubr)
 library(stringr)
 library(lubridate)
 library(openxlsx)
-
+library(tidyselect)
 ```
 
 #Function
@@ -1273,15 +1273,22 @@ This chunk deals with the problem of different hh_p_inc variables????
   
 
 ###count multiple contact
+place_.. variable is not consistent in format:
+- data type: factor(almost) and character(place_oth)
+- value:[0,1] (almost) and [yes,no] (place_dk)
 
 ```{r Count multiple contacts}
 
-dt_hh_all <- dt_hh_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == "Yes", na.rm=TRUE))
+# # variable is presented in the dataset, no need to calculate again. so, the code below is refrence when needed
+# dt_hh_all <- dt_hh_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == 1, na.rm=TRUE))
+
+dt_hh_all <- dt_hh_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == 1, na.rm=TRUE)) #delete this code may cause error in te next chunk?
+
 table(dt_hh_all$place_multiple)
 
-# dt_hh_all$place_multiple <- as.integer(dt_hh_all$place_multiple >= 2) # sum of at least 2 places ## only 0,1 or NA
+# dt_hh_all$place_multiple <- as.integer(dt_hh_all$place_multiple >= 2) # sum of at least 2 places
 
-dt_outside_all <- dt_outside_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == "Yes", na.rm=TRUE))
+dt_outside_all <- dt_outside_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == 1, na.rm=TRUE))
 
 table(dt_outside_all$place_multiple)
 
@@ -1304,7 +1311,7 @@ nrow(outside_contacts) # must be <= nrow(d_self_all)
 
 # #one obs(new_id) per wave (wave) may have both hh_contacts and outside_contacts => merged data can be larger than either original files
 
-d_all_wide <- merge(d_self_all, hh_contacts, by=c("new_id", "wave"), all.x =T) #all.x: more variable but less row
+d_all_wide <- merge(d_self_all, hh_contacts, by=c("new_id", "wave"), all.x=T) #all.x: more variable but less row
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
 d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
@@ -1587,38 +1594,13 @@ rm(before_once_week, before_once_month, before_2_weeks, before_every_day, before
 
 table1::table1(~non_hh_before_onceweek_contact_n + non_hh_before_oncemonth_contact_n + non_hh_before_2weeks_contact_n + non_hh_before_everyday_contact_n + non_hh_before_lessmonth_contact_n + non_hh_before_never_contact_n | wave, data=d_all_wide)
 
-# plot different contacts
-ggplot(d_all_wide,aes(factor(wave)))+
-  geom_point(aes(y=non_hh_before_onceweek_contact_n),stat="summary",fun ="mean",col="red")+
-  geom_point(aes(y=non_hh_before_oncemonth_contact_n),stat="summary",fun ="mean", col ="blue")
 
-# plot mean contact
-ggplot(d_all_wide,aes(factor(wave),all_contact_n))+
-  # geom_line(aes(y=all_contact_n))+
-  stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95), fill="lightblue")+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean, color="red")
 
-#https://stackoverflow.com/questions/53180486/plotting-average-of-multiple-groups-across-time-in-ggplot2 (plot different group)
-
-sample_sum <- d_all_wide %>%
-  group_by(as.factor(wave)) %>%
-  summarize(mean = mean(all_contact_n),
-            sd   = sd(all_contact_n),
-            mean_p2sd = mean + 2 * sd,
-            mean_m2sd = mean - 2 * sd) %>%
-  ungroup()
-
-p <- ggplot(sample_sum %>%
-              gather(stat, all_contact_n, mean, mean_p2sd:mean_m2sd), 
-            aes(x = wave, y = all_contact_n)) + 
-  geom_line(aes(linetype = stat))
-p
 
 ```
 
-#create age group
+
+##create age group
 
 ```{r create age groups, weekday, etc}
 d_all_wide$date <- ymd(paste0(d_all_wide$date_YYYY_0, "/", d_all_wide$date_MM_0, "/", d_all_wide$date_DD_0))
@@ -1645,6 +1627,8 @@ table(d_all_wide$date, d_all_wide$weekday)
 #wave 14 onwards already has variable hh_p_incl_0 => must add 1 to hh_p_excl_0 from waves 1 to 13
 d_all_wide <- d_all_wide %>% mutate(hh_p_incl_0 = ifelse(questionnaire=="old", (hh_p_excl_0+1), hh_p_incl_0))
 d_all_wide <- d_all_wide %>% mutate(hh_p_incl_0 = ifelse(wave==14, (hh_p_incl_0+1), hh_p_incl_0))
+
+#hh size
 table1::table1(~hh_p_incl_0 + as.factor(hh_p_incl_0) | as.factor(wave), data=d_all_wide)
 
 d_all_wide$hh_p_incl_0_2[d_all_wide$hh_p_incl_0=="1"] <- "1"
@@ -1673,28 +1657,28 @@ d_all_wide$age_group_2[ d_all_wide$age_group=="55-64" ] <- "55-64"
 d_all_wide$age_group_2[ d_all_wide$age_group=="65-69"] <- "65-69"
 d_all_wide$age_group_2[ d_all_wide$age_group=="70-74" | d_all_wide$age_group=="75-79" | d_all_wide$age_group=="80-84" | d_all_wide$age_group=="85+"] <- "70+"
 
-#sex2
+#sex2#the same??
 d_all_wide$sex2 [d_all_wide$sex=="Female"] <- "Female"
 d_all_wide$sex2[d_all_wide$sex=="Male"] <- "Male"
 
 ```
 
-# add Q75/76
+## add Q75/76
 
 ```{r Add Q75 / Q76 contacts AND truncate Q contacts at 50}
-# Bitte jede Kategorie einzeln checken. I.e. Q75_u18_work mit Q76_u18_work abgleichen und falls nötig ersetzten und das halt für jede Kategorie. So habe ichs bisher gemacht und Victoria hat das dann von mir übernommen.
+# Please check each category individually. I.e. compare Q75_u18_work with Q76_u18_work and replace if necessary and that just for each category. That's how I did it so far and Victoria took over from me.
 
 
 
 
-# Bitte geben Sie die Anzahl an Kontakten für jede Altersgruppe und jedes Umfeld an.
+# Please indicate the number of contacts for each age group and setting.
 # ROWS
-# Unter 18 Jahre 
-# 18 bis 64 Jahre
-# 65 Jahre und älter
-# COLUMNS
+# Under 18 years 
+# 18 to 64 years
+# 65 years and older
+# COLUMNS.
 # Am Arbeitsplatz -> add to work_contact_n (no info about inside/outside!)
-v <- which(d_all_wide$Q76_u18_work > d_all_wide$Q75_u18_work)
+v <- which(d_all_wide$Q76_u18_work > d_all_wide$Q75_u18_work)#index rows that ...bigger, how about smaller => should we use !=????
 d_all_wide$Q75_u18_work[v] <- d_all_wide$Q76_u18_work[v]
 
 v <- which(d_all_wide$Q76_1864_work > d_all_wide$Q75_1864_work)
@@ -1784,7 +1768,7 @@ d_all_wide$not_specified_contact_n_Q75 <- d_all_wide$not_specified_contact_n + d
 
 ```
 
-# add Q75/76 to non-hh
+## add Q75/76 to non-hh
 
 ```{r Add Q75 / Q76 contacts to non-hh contacts}
 
@@ -1804,7 +1788,7 @@ d_all_wide$all_contact_n_Q75 <- d_all_wide$all_contact_n +
 
 ```
 
-# add Q75/76 to non-hh truncated overall at 50
+## add Q75/76 to non-hh truncated overall at 50 (lshtm)
 
 ```{r Add Q75 / Q76 contacts to non-hh contacts truncated overall at 50, i.e. like lshtm does it not based on categories}
 
@@ -1823,9 +1807,10 @@ d_all_wide$lshtm_all_contact_n_Q75 <- d_all_wide$all_contact_n +
 
 ```
 
-#data checks and labelling
+##data checks and labelling
 
 ```{r Some data checks and labelling}
+
 d_all_wide$wave <- as.factor(d_all_wide$wave)
 levels(d_all_wide$wave) <- WAVES[as.integer(levels(d_all_wide$wave))]
 
@@ -1842,18 +1827,202 @@ d_all_wide <- subset(d_all_wide, !is.na(new_id))
 
 # sum of place_ contacts (incl. oth_contact_n) must not be greater than non_hh_contact_n
 # CAVE: multiple sites
-d_all_wide$sum_place_contact_n <- rowSums(d_all_wide[, 
-                                                     c(CONTACT_N,
+d_all_wide$sum_place_contact_n <- rowSums(d_all_wide[, c(CONTACT_N,
                                                        "not_specified_contact_n")])
-table(d_all_wide$non_hh_contact_n - d_all_wide$sum_place_contact_n,
+table(d_all_wide$non_hh_contact_n - d_all_wide$sum_place_contact_n,# no negative value 
       d_all_wide$multiple_contact_n,
       useNA = "ifany")
+
 ```
 
 
+##convert all NA to zero for later calculations
+Be cautious!
+
+```{r convert all NA to zero for later calculations}
+# 
+# for(j in 19:ncol(d_all_wide)) { #für bestimmte Variablen#for certain variables
+#   d_all_wide[[j]][is.na(d_all_wide[[j]])] = 0
+# }
+
+```
+
+
+##Q79_group contacts
+###work
+
+```{r Berechnung Gruppenkontakte}
+###Q79 
+###Work Contacts
+d_all_wide$Q79a_work_sum <- rowSums(d_all_wide[, c("Q79a_age_met_work_u18",
+                                                   "Q79a_age_met_work_1864",
+                                                   "Q79a_age_met_work_o64")],
+                                    na.rm = TRUE)
+d_all_wide$Q79a_work_sum[d_all_wide$age_group=="Under 1" | 
+                           d_all_wide$age_group=="1-4" |
+                           d_all_wide$age_group=="5-9" |
+                           d_all_wide$age_group=="10-14"] <- 0
+
+## add the work Q contacts to the overall work contacts
+d_all_wide$work_contact_n_Q79a <- d_all_wide$work_contact_n + d_all_wide$Q79a_work_sum
+
+###Q80 ###School Contacts
+d_all_wide$Q80a_school_sum <- rowSums(d_all_wide[, c("Q80a_age_met_uni_u18",
+                                                     "Q80a_age_met_uni_1864",
+                                                     "Q80a_age_met_uni_o64")],
+                                      na.rm = TRUE)
+# add the Q school contacts to the other school contacts
+d_all_wide$school_contact_n_Q80a <- d_all_wide$school_contact_n + d_all_wide$Q80a_school_sum
+
+###Q81 ###Else Contacts
+d_all_wide$Q81a_else_sum <- rowSums(d_all_wide[, c("Q81a_age_met_else_u18",
+                                                   "Q81a_age_met_else_1864",
+                                                   "Q81a_age_met_else_o64")],
+                                    na.rm = TRUE)
+
+```
+
+
+
+###all non-hh-contacts
+Berechnung alle non-hh-contacts
+
+```{r non-hh-contacts}
+# also add to all non_hh_
+d_all_wide$non_hh_contact_n_Q79 <- d_all_wide$non_hh_contact_n + 
+  d_all_wide$Q79a_work_sum + 
+  d_all_wide$Q80a_school_sum + 
+  d_all_wide$Q81a_else_sum
+
+```
+
+### all-contacts
+Berechnung all-contacts
+```{r all-contact}
+# also add to all_
+d_all_wide$all_contact_n_Q79 <- d_all_wide$all_contact_n + 
+  d_all_wide$Q79a_work_sum + 
+  d_all_wide$Q80a_school_sum + 
+  d_all_wide$Q81a_else_sum
+```
+
+#contact dataset with keys parameter
+```{r}
+
+non_hh_Q75 <- d_all_wide %>% select("wave_0",contains("contact_n_Q75"))%>%select(-c(contains("lshtm")))%>%select(-c(contains("all")))
+
+non_hh_Q75 <- melt(non_hh_Q75,id.vars="wave_0")
+
+ggplot(non_hh_Q75, aes( x=wave_0, y=value, colour=variable, fill=variable ))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95))+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean)+
+  scale_fill_manual(values = c("#fee8c8","#e34a33","#2b8cbe","#ece7f2"))+
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+  # scale_x_discrete("",labels = c(WAVES))+ #
+  labs(y="Mean_contacts_Q75",x="wave")
+
+hh <- d_all_wide %>% select("wave_0",contains("hh_contact_"))%>%select(-c(contains("non")))
+
+hh <- melt(hh,id.vars="wave_0")
+
+ggplot(hh, aes( x=wave_0, y=value, colour=variable, fill=variable ))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95))+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean)+
+  scale_fill_manual(values = c("#fee8c8","#e34a33","#2b8cbe"))+
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+  # scale_x_discrete("",labels = c(WAVES))+ #
+  labs(y="Mean_contacts_Q75",x="wave")
+
+```
+
+#plot contacts
+This show different trend with Veronika's plot
+But using 2 different method showed similar results.So the difference may be durring compiling data
+```{r}
+
+#method1:
+# plot mean contact
+ggplot(d_all_wide, aes(x=wave_0, y=all_contact_n_Q75))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95), fill="lightblue")+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean, color="red")+
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+  # scale_x_discrete("",labels = c(WAVES))+ #
+  labs(y="Mean_contacts_Q75",x="wave")
+
+# plot mean contact_hh
+ggplot(d_all_wide, aes(x=wave_0, y=hh_contact_n))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95), fill="lightblue")+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean, color="red")+
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+  labs(y="Mean_contacts_hh",x="Wave")
+# plot mean contact_non_hh
+ggplot(d_all_wide, aes(x=wave_0, y=non_hh_contact_n_Q75))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95), fill="lightblue")+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean, color="red")+
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+  labs(y="Mean_contacts_non_hh_Q75", x="Wave")
+
+#https://stackoverflow.com/questions/53180486/plotting-average-of-multiple-groups-across-time-in-ggplot2 (plot different group)
+
+# sample_sum <- d_all_wide %>%
+#   group_by(as.factor(wave)) %>%
+#   summarize(mean = mean(all_contact_n),
+#             sd   = sd(all_contact_n),
+#             mean_p2sd = mean + 2 * sd,
+#             mean_m2sd = mean - 2 * sd) %>%
+#   ungroup()
+# 
+# p <- ggplot(sample_sum %>%
+#               gather(stat, all_contact_n, mean, mean_p2sd:mean_m2sd), 
+#             aes(x = wave, y = all_contact_n)) + 
+#   geom_line(aes(linetype = stat))
+# p
+
+# another aprroach show similar result
+
+# #method2
+# mean.contact = d_all_wide %>% 
+#   group_by(wave) %>% 
+#   summarise(N = n(),
+#             avg.contact = mean(all_contact_n),
+#             SE.low = avg.contact - (sd(all_contact_n)/sqrt(N)),
+#             SE.high =avg.contact + (sd(all_contact_n)/sqrt(N)))
+# 
+# 
+# plot(avg.contact ~ wave, data = mean.contact,ylim=c(0,5), type = 'n')
+# 
+# #note I have defined c(x1, x2) and c(y1, y2)
+# polygon(c(mean.contact$wave, rev(mean.contact$wave)), 
+#         c(mean.contact$SE.low,rev(mean.contact$SE.high)), density = 200, col ='grey90')
+# 
+# points(avg.contact ~ wave, data = mean.contact, pch = 19, col = 'firebrick')
+
+# #method 3: ggplot ribbon
+# d_all_wide %<>% mutate(low = ?, high = ?) # add lower bounds, and an index
+# gplot(d_all_wide, aes(x = wave, y = all_contact_n)) + 
+#   geom_line(col="black") + 
+#   geom_point() + 
+#   geom_ribbon(aes(ymin = low, ymax = high), 
+#               alpha=0.1, 
+#               linetype="dashed",
+#               color="grey")
+
+
+```
+
 # barchart
 ```{r Long format for bar chart of settings}
-# All
+  # All
 keycol <- "contact_type"
 valuecol <- "contact_n"
 gathercols <- c(CONTACT_N, "not_specified_contact_n", "hh_contact_n",
@@ -2050,7 +2219,6 @@ n.table <- function(x) {
 ```
 
 # Number of participants per wave
-
 ## all participants  included regardless of number of waves contributed
 ```{r,results="asis"}
 min_number_waves=1
@@ -2072,46 +2240,18 @@ table1::table1(~num_wave_included + wave_n + wave_n_factor + wave_n_cat, data=df
 #n_overall.table(df_dummy$wave_n)
 table1::table1(~all_contact_n_Q75 + all_contact_n | wave, data=df)
 
-```
-
-
-## participants with 2 or more waves included
-```{r,results="asis"}
-min_number_waves=2
-df <- get_contacts(d_all_wide,min.waves=min_number_waves)
-
-df_dummy <- df %>% group_by(new_id) %>% dplyr::summarise(wave_n=n()) 
-df_dummy$num_wave_included<-min_number_waves
-df_dummy$wave_n_factor <- as.factor(df_dummy$wave_n)
-table1::table1(~num_wave_included + wave_n + wave_n_factor , data=df_dummy)
-#n_overall.table(df_dummy$wave_n)
+#mean contact
 table1::table1(~all_contact_n_Q75 + all_contact_n | wave, data=df)
-```
-
-
-## participants with 3 or more waves included
-```{r,results="asis"}
-min_number_waves=3
-df <- get_contacts(d_all_wide,min.waves=min_number_waves)
-
-df_dummy <- df %>% group_by(new_id) %>% dplyr::summarise(wave_n=n()) 
-df_dummy$num_wave_included<-min_number_waves
-df_dummy$wave_n_factor <- as.factor(df_dummy$wave_n)
-table1::table1(~num_wave_included + wave_n + wave_n_factor , data=df_dummy)
-#n_overall.table(df_dummy$wave_n)
-table1::table1(~all_contact_n_Q75 + all_contact_n | wave, data=df)
-```
-
-
-```{r}
-min_number_waves=1
-df <- get_contacts(d_all_wide,min.waves=min_number_waves)
 
 ```
+
+
 
 From now on all participants who participated in at least `r min_number_waves` wave(s) are included.
 
 # UNWEIGHTED
+##descriptive_table
+###number_of_participants
 
 ```{r descriptive_table}
 
@@ -2130,16 +2270,14 @@ my.render.cat <- function(x) {
 #table1::table1(~ weekend_weekday + sex2 + age_group_2 + hh_p_incl_0_2| wave, data=df,  render.categorical=my.render.cat,overall=F)
 
 df_unweighted <- df
-```
 
-```{r}
 number_part <- df_unweighted %>% group_by(wave) %>% dplyr::summarise(wave_n=n())
 df_unweighted$wave_num <- as.numeric(df_unweighted$wave)
 
 number_of_participants <- ggplot(df_unweighted, aes(x=wave_num))+
       geom_histogram(binwidth=1, fill="grey", colour="black")+
 theme(panel.background = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),  axis.line = element_line(colour = "black"), plot.title = element_text(face="bold", size=16, colour = "black"), axis.title = element_text(size=16, face="bold", colour = "black"), axis.text.x = element_text(size = 15, colour = "black", angle = 90, vjust=0.5),  axis.text.y = element_text(size = 15, colour = "black")) + 
-  scale_x_continuous(breaks = seq(1, current_wave, 1))
+  scale_x_continuous(breaks = seq(1, current_wave, 2))
 number_of_participants
 
 #Warning: Removed 535 rows containing non-finite values (stat_bin)
@@ -2148,9 +2286,11 @@ number_of_participants
 participants <- paste0(path_figures, "/number_of_participants", ".png")
 ggsave(participants, width=10, height=7)
 
+
 ```
 
-#Age and sex distribution
+
+###Age and sex distribution
 
 ```{r}
 table1(~age_group_2 + sex2 + hh_p_incl_0|wave, data=df_unweighted)
@@ -2255,89 +2395,64 @@ ggsave(hh_part, width=10, height=7)
 
 ```
 
-## Bundesland
-```{r}
-table1(~bundesland_0|wave, data=df_unweighted)# 
-table1(~bundesland_0, data=df_unweighted)
+## All contacts without group contacts
+
+```{r,results="asis"}
+#All contacts WItHOUT Q contacts!
+df$contacts<-df$all_contact_n
+
+n.table(df$wave)
+
+plot_df<-plot.mean(df)
 
 ```
 
 
-## Distribution of contacts
+## Other settings
 
-```{r distribution all contacts with Q}
-ggplot(d_all_wide, aes(x=all_contact_n_Q75))+
-geom_histogram( binwidth=1)+
-  theme(panel.background = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),  axis.line = element_line(colour = "black"), plot.title = element_text(face="bold", size=16, colour = "black"), axis.title = element_text(size=16, face="bold", colour = "black"), axis.text.x = element_text(size = 15, colour = "black", angle = 90, vjust=0.5),  axis.text.y = element_text(size = 15, colour = "black")) +
-  scale_x_continuous(limits=c(NA,50)) +
-  scale_y_continuous(expand=c(0,0), limits=c(0, NA)) +
-  facet_wrap(~wave, ncol=4) + 
-  theme(strip.text = element_text(face="bold", size=16,lineheight=5.0, colour="black"))
+- work settings are based on contacts that reported employment (full-time,part-time,self employment)
+- school settings are based on contacts that reported to be pupils (nursery or pre-school,school,higher education/university) and job = "pupil"
 
-Distribution_panel_FILENAME <- paste0(path_figures, "/distribution_all_contact_n_Q75_",truncate, ".png")
-ggsave(Distribution_panel_FILENAME, width=10, height=10)
+```{r,cache=F,results='asis'}
+names <- df %>% dplyr::select(contains("contact_n")) %>% colnames()
+names <- setdiff(names,c("all_contact_n","all_contact_n_Q75","hh_contact_n_outside",
+                        "hh_contact_n_inside","hh_contact_n","non_hh_contact_n_outside",
+                        "non_hh_contact_n_inside","non_hh_contact_n","all_contact_n_inside","all_contact_n_outside"))
 
-```
+work_setting <- df %>% dplyr::select(contains("contact_n")) %>% dplyr::select(contains("work")) %>% colnames()
+school_setting <- df %>% dplyr::select(contains("contact_n")) %>% dplyr::select(contains("school")) %>% colnames()
 
+working <- c("Employed full-time (34 hours or more)",
+                       "Employed part-time (less than 34 hours)",
+                       "Self employed")
+pupil <- c("Nursery or pre-school", "School", "Higher education, e.g. university")
 
-```{r distribution all contacts WITHOUT Q}
-ggplot(d_all_wide, aes(x=all_contact_n))+
-geom_histogram( binwidth=1)+
-  theme(panel.background = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),  axis.line = element_line(colour = "black"), plot.title = element_text(face="bold", size=16, colour = "black"), axis.title = element_text(size=16, face="bold", colour = "black"), axis.text.x = element_text(size = 15, colour = "black", angle = 90, vjust=0.5),  axis.text.y = element_text(size = 15, colour = "black")) +
-  scale_x_continuous(limits=c(NA,50)) +
-  scale_y_continuous(expand=c(0,0), limits=c(0, NA)) +
-  facet_wrap(~wave, ncol=4) + 
-  theme(strip.text = element_text(face="bold", size=16,lineheight=5.0, colour="black"))
-
-Distribution_panel_FILENAME <- paste0(path_figures, "/distribution_all_contact_n_",truncate, ".png")
-ggsave(Distribution_panel_FILENAME, width=10, height=10)
-
-```
+FILE <- paste0("C:/Users/", USER, "/sciebo/Contact-a-thon/COVIMOD/",
+               "annotation_Nicole.csv")
+ann <- read_csv((FILE)) %>% dplyr::select(name,label_variable)
 
 
-```{r distribution hh contacts WITHOUT Q}
-ggplot(d_all_wide, aes(x=hh_contact_n))+
-geom_histogram(binwidth=1)+
-  theme(panel.background = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),  axis.line = element_line(colour = "black"), plot.title = element_text(face="bold", size=16, colour = "black"), axis.title = element_text(size=16, face="bold", colour = "black"), axis.text.x = element_text(size = 15, colour = "black", angle = 90, vjust=0.5),  axis.text.y = element_text(size = 15, colour = "black")) +
-  scale_x_continuous(limits=c(NA,NA)) +
-  scale_y_continuous(expand=c(0,0), limits=c(0, NA)) +
-  facet_wrap(~wave, ncol=4) + 
-  theme(strip.text = element_text(face="bold", size=16,lineheight=5.0, colour="black"))
+current_df <- df
 
-Distribution_panel_FILENAME <- paste0(path_figures, "/distribution_hh_contact_n_",truncate, ".png")
-ggsave(Distribution_panel_FILENAME, width=10, height=10)
+for(i in seq_along(names)) {
 
-```
+  if(names[i] %in% ann$name) {
+    cat(paste0("### ", ann[ann$name==names[i],2],"\n\n"))
+  } else {
+    cat(paste0("### ",names[i],"\n\n"))
+  }
+  current_df <- df
+  current_df$contacts <- current_df[,names[[i]]]
 
+  if(names[[i]] %in% work_setting) {current_df <- current_df %>% filter(job %in% working)}
+  if(names[[i]] %in% school_setting) {current_df <- current_df %>% filter(school %in% pupil & job == "Student/Pupil")}
 
+  print(n.table(current_df$wave))
+  plot.mean(current_df)
 
-```{r distribution non_hh contacts WITHOUT Q}
-ggplot(d_all_wide, aes(x=non_hh_contact_n))+
-geom_histogram(binwidth=1)+
-  theme(panel.background = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),  axis.line = element_line(colour = "black"), plot.title = element_text(face="bold", size=16, colour = "black"), axis.title = element_text(size=16, face="bold", colour = "black"), axis.text.x = element_text(size = 15, colour = "black", angle = 90, vjust=0.5),  axis.text.y = element_text(size = 15, colour = "black")) +
-  scale_x_continuous(limits=c(NA,50)) +
-  scale_y_continuous(expand=c(0,0), limits=c(0, NA)) +
-  facet_wrap(~wave, ncol=4) + 
-  theme(strip.text = element_text(face="bold", size=16,lineheight=5.0, colour="black"))
+  cat("\n\n")
 
-Distribution_panel_FILENAME <- paste0(path_figures, "/distribution_non_hh_contact_n_WITHOUT_Q_",truncate, ".png")
-ggsave(Distribution_panel_FILENAME, width=10, height=10)
-
-```
-
-
-```{r distribution non_hh contacts WIT Q}
-ggplot(d_all_wide, aes(x=non_hh_contact_n_Q75))+
-geom_histogram(binwidth=1)+
-  theme(panel.background = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),  axis.line = element_line(colour = "black"), plot.title = element_text(face="bold", size=16, colour = "black"), axis.title = element_text(size=16, face="bold", colour = "black"), axis.text.x = element_text(size = 15, colour = "black", angle = 90, vjust=0.5),  axis.text.y = element_text(size = 15, colour = "black")) +
-  scale_x_continuous(limits=c(NA,50)) +
-  scale_y_continuous(expand=c(0,0), limits=c(0, NA)) +
-  facet_wrap(~wave, ncol=4) + 
-  theme(strip.text = element_text(face="bold", size=16,lineheight=5.0, colour="black"))
-
-Distribution_panel_FILENAME <- paste0(path_figures, "/distribution_non_hh_contact_n_WITH_Q_",truncate, ".png")
-ggsave(Distribution_panel_FILENAME, width=10, height=10)
-
+}
 ```
 
 # WEIGHTED
@@ -2522,7 +2637,7 @@ breaks_17waves <- c(1,3,5,7,9,11,13,15,19,23,25,27,28, 31, 33, 35, 40, 44, 47, 5
 breaks_16waves <- c(1,3,5,7,9,11,13,15,19,23,25,27,28, 31, 33, 35)
 ```
 
-## Mask wearing
+#Mask wearing
 ```{r}
 table1(~mask_0 + transportno_0|wave, data=df)
 
@@ -2608,7 +2723,7 @@ ggsave(mask_per_wave_restricted, width=10, height=7)
 
 ```
 
-## Transport Use
+# Transport Use
 
 ```{r}
 
@@ -2658,7 +2773,7 @@ ggsave(transport_per_wave_all, width=10, height=7)
 
 
 
-## Percent people having no non-hh contact
+# Percent people having no non-hh contact
 ```{r}
 
 df_histo <- df %>% select(new_id, wave, non_hh_contact_n_Q75)
@@ -2717,7 +2832,7 @@ plot.mean(df,weighted = T,title="Weighted bootstraped mean with 95% percentile C
 ```
 
 
-### Only outside household contacts 
+## Only outside household contacts 
 ```{r}
 df$contacts<-df$hh_contact_n_outside
 plot.mean(df,weighted = T,title="Weighted bootstraped mean with 95% percentile CI - R = 1000 ")
@@ -2751,171 +2866,7 @@ ggsave(Setting_panel_FILENAME, width=10, height=7)
 
 ```
 
-
-#Summary
-##calculate all hh contacts and outside contacts
-The following chunk summarizes the number of contacts via ID and wave.
-
-```{r calculate all hh contacts and outside contacts }
-       
-# All contacts (inside and outside)
-
-hh_contacts <- hh_contact_number(dt_hh_all, new_id, wave) 
-### er zählt das Vorkommen einer ID in dt_hh_all
-#Wert stimmt mit hh_p_incl_0 in d_self_all ein
-outside_contacts <- non_hh_contact_number(dt_outside_all, new_id, wave) 
-#hier zählt er die Ids bei den Outside-Kontakten
-                #Achtung: Place-Kontakte können häufiger vorkommen als Kontakte! Ich kann eine 
-                            #Person an verschiedene Orten treffen
-
-nrow(d_self_all)
-nrow(hh_contacts)      # must be <= nrow(d_self_all)
-nrow(outside_contacts) # must be <= nrow(d_self_all)
-
-d_all_wide <- merge(d_self_all, hh_contacts, by=c("new_id", "wave"), all=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-
-
-# Inside contacts
-aux_hh <- dt_hh_all %>% filter(place_inside==1) 
-hh_contacts <- hh_contact_number(aux_hh, new_id, wave)
-
-aux_outside <- dt_outside_all %>% filter(place_inside==1)
-outside_contacts <- non_hh_contact_number(aux_outside, new_id, wave)
-
-nrow(d_self_all)
-nrow(hh_contacts)      # must be <= nrow(d_self_all)
-nrow(outside_contacts) # must be <= nrow(d_self_all)
-
-
-# rename
-names(hh_contacts) <- sub("_contact_n", "_contact_n_inside", names(hh_contacts))
-names(outside_contacts) <- sub("_contact_n", "_contact_n_inside", names(outside_contacts))
-
-
-# merge to one dataset
-d_all_wide <- merge(d_all_wide, hh_contacts, by=c("new_id", "wave"), all=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-
-names(d_all_wide)
-
-# Outside contacts
-aux_hh <- dt_hh_all %>% filter(place_outside==1)
-hh_contacts <- hh_contact_number(aux_hh, new_id, wave)
-
-aux_outside <- dt_outside_all %>% filter(place_outside==1)
-outside_contacts <- non_hh_contact_number(aux_outside, new_id, wave)
-
-nrow(d_self_all)
-nrow(hh_contacts)      # must be <= nrow(d_self_all)
-nrow(outside_contacts) # must be <= nrow(d_self_all)
-
-
-# rename
-names(hh_contacts) <- sub("_contact_n", "_contact_n_outside", names(hh_contacts))
-names(outside_contacts) <- sub("_contact_n", "_contact_n_outside", names(outside_contacts))
-
-d_all_wide <- merge(d_all_wide, hh_contacts, by=c("new_id", "wave"), all=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-
-
-```
-
-##convert all NA to zero for later calculations
-Be cautious!
-
-```{r convert all NA to zero for later calculations}
-
-for(j in 19:ncol(d_all_wide)) { #für bestimmte Variablen
-  d_all_wide[[j]][is.na(d_all_wide[[j]])] = 0
-}
-
-```
-
-
-
-## Calculation all contacts
-Berechnung all contacts
-
-```{r Berechnung all contacts}
-# Achtung: Place-Kontakte können häufiger vorkommen als Kontakte! Ich kann eine 
-# Person an verschiedene Orten treffen
-# Achtung: Ich kann eine Person sowohl inside als auch outside treffen (Park, Home)
-d_all_wide$all_contact_n <- d_all_wide$hh_contact_n + d_all_wide$non_hh_contact_n
-d_all_wide$all_contact_n_inside <- d_all_wide$hh_contact_n_inside + d_all_wide$non_hh_contact_n_inside
-d_all_wide$all_contact_n_outside <- d_all_wide$hh_contact_n_outside + d_all_wide$non_hh_contact_n_outside
-
-d_all_wide$all_contact_n[is.na(d_all_wide$all_contact_n)] <- 0 #change to 0 for NA
-d_all_wide$all_contact_n_inside[is.na(d_all_wide$all_contact_n_inside)] <- 0 #change to 0 for NA
-d_all_wide$all_contact_n_outside[is.na(d_all_wide$all_contact_n_outside)] <- 0 #change to 0 for NA
-
-```
-
-
-## Calculation group contacts
-Berechnung Gruppenkontakte
-
-```{r Berechnung Gruppenkontakte}
-###Q79 
-###Work Contacts
-d_all_wide$Q79a_work_sum <- rowSums(d_all_wide[, c("Q79a_age_met_work_u18",
-                                                   "Q79a_age_met_work_1864",
-                                                   "Q79a_age_met_work_o64")],
-                                    na.rm = TRUE)
-d_all_wide$Q79a_work_sum[d_all_wide$age_group=="Under 1" | 
-                           d_all_wide$age_group=="1-4" |
-                           d_all_wide$age_group=="5-9" |
-                           d_all_wide$age_group=="10-14"] <- 0
-
-## add the work Q contacts to the overall work contacts
-d_all_wide$work_contact_n_Q79a <- d_all_wide$work_contact_n + d_all_wide$Q79a_work_sum
-
-###Q80 ###School Contacts
-d_all_wide$Q80a_school_sum <- rowSums(d_all_wide[, c("Q80a_age_met_uni_u18",
-                                                     "Q80a_age_met_uni_1864",
-                                                     "Q80a_age_met_uni_o64")],
-                                      na.rm = TRUE)
-# add the Q school contacts to the other school contacts
-d_all_wide$school_contact_n_Q80a <- d_all_wide$school_contact_n + d_all_wide$Q80a_school_sum
-
-###Q81 ###Else Contacts
-d_all_wide$Q81a_else_sum <- rowSums(d_all_wide[, c("Q81a_age_met_else_u18",
-                                                   "Q81a_age_met_else_1864",
-                                                   "Q81a_age_met_else_o64")],
-                                    na.rm = TRUE)
-
-```
-
-
-
-## Calculation all non-hh-contacts
-Berechnung alle non-hh-contacts
-
-```{r non-hh-contacts}
-# also add to all non_hh_
-d_all_wide$non_hh_contact_n_Q79 <- d_all_wide$non_hh_contact_n + 
-  d_all_wide$Q79a_work_sum + 
-  d_all_wide$Q80a_school_sum + 
-  d_all_wide$Q81a_else_sum
-
-```
-
-## Calculation all-contacts
-Berechnung all-contacts
-```{r all-contact}
-# also add to all_
-d_all_wide$all_contact_n_Q79 <- d_all_wide$all_contact_n + 
-  d_all_wide$Q79a_work_sum + 
-  d_all_wide$Q80a_school_sum + 
-  d_all_wide$Q81a_else_sum
-```
-
+#
 # Descriptives
 ##Preparation 
 
