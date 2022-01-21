@@ -78,6 +78,18 @@ library(stringr)
 library(lubridate)
 library(openxlsx)
 library(tidyselect)
+
+
+library(socialmixr)
+# https://cran.r-project.org/web/packages/socialmixr/vignettes/introduction.html
+library(RColorBrewer) # used to customize (heatmap) color
+library(ComplexHeatmap) # heatmap
+library(ggmosaic)
+library(gridExtra)
+library(grid)
+library(Rmisc)
+library(gtable)
+
 ```
 
 #Function
@@ -579,6 +591,7 @@ my.boxplots <- function(x, current_contact_variable, TITLE) {
                       "overall = NULL)")
   print(eval(parse(text = text2eval)))
 }
+
 ```
 
 #Wave label
@@ -1003,6 +1016,7 @@ table1(~hh_confirm + hh_remove + emp_status_0 | as.factor(wave), data=d_self_all
 
 ##NRW
 Variable: bundesland_0 == "Nordrhein-Westfalen"
+d_self_all: 
 
 ```{r}
 d_self_all<- d_self_all%>%filter(bundesland_0 == "Nordrhein-Westfalen")#upto wave 32:12360 obs
@@ -1016,6 +1030,11 @@ dt_hh_all<- dt_hh_all[dt_hh_all$new_id %in% d_self_all$new_id, ] # subset NRW
 
 
 # translate group contacts
+Q75: Wave 3-13
+Q79: Wave 14- onward
+This code below to integrate group contact information across waves ino Q.75 style. 
+The missing answer in this question is very high (>85%). The possible reason is the respondent answered the individual contact question and don't care much about this question anymore.
+*The missing mean not giving answer ?
 
 ```{r translate the group contacts from wave 14 to 22 into wave 3 to 13 style}
 # names wave 3-13   new names wave 14 onwards
@@ -1058,247 +1077,112 @@ d_self_all <- d_self_all %>% mutate (Q76_u18_else = ifelse(questionnaire=="new",
 d_self_all <- d_self_all %>% mutate (Q76_1864_else = ifelse(questionnaire=="new", Q81c_age_phys_else_1864, Q76_1864_else))
 d_self_all <- d_self_all %>% mutate (Q76_o64_else = ifelse(questionnaire=="new", Q81c_age_phys_else_o64, Q76_o64_else))
 
+# sumary table 
 table1(~Q75_u18_work + Q75_1864_work + Q75_1864_work +
        Q75_u18_school + Q75_1864_school+ Q75_o64_school + Q75_u18_else +Q75_1864_else +Q75_o64_else | as.factor(wave), data=d_self_all)
   
 ```
 
-# Data Cleaining
-##dt_outside_all
+# remove work contacts from <15 year olds
+The respondent < 15 year-old should not have work contact. Therefore, the work contact with those individuals (if any) should set to 0.
 
-### check levels
+```{r remove work contacts from <15 year olds}
 
-```{r check levels of place-variables dt_outside_all transform place_oth and yes no answers}
-# for the place-variables in dt_hh_all and dt_outside_all the questionnaire asks
-# about meetings in general, so it's either yes, no or NA (for other places: NA 
-# or 1=YES)
+#In each wave, each participant (new_id) should be unique, check if it is true.
+for (w in 1:current_wave){
+  wave<- d_self_all %>% filter(wave==w)
+  if(dim(wave)[1] !=  length(unique(wave$new_id))){
+    print(paste0("new_id is not unique in wave",w))
+  }
+}
 
-## create dummy (smaller dataset with dt_outside_all)
-dummy <- d_self_all %>% select(new_id, wave, age_group, age_0)#
-#age_0 with NAs value => was imputed into agegroup without NAs?
-dummynames<-c("new_id", "wave","age_group_participant","age_participant")
+#Set the work contacts of the < 15 year olds to 0
+dummy <- d_self_all %>% select(new_id, wave, age_group)
+dummynames<-c("new_id", "wave","age_group_participant")
 colnames(dummy) <- dummynames
-dummy <- merge(dummy, dt_outside_all, by=c("new_id", "wave"), all.y=T) 
-
-dummy$place_oth <- as.numeric(dummy$place_oth)
-dummy$place_oth[is.na(dummy$place_oth)] <- 0 #change to 0 ## = No because no place was indicated?
-
-# a specific place can take "yes", "no" and NA, now change to "yes"=1, "no"=0
-dummy$place_home_own<-ifelse(dummy$place_home_own=="Yes",1,0)
-dummy$place_home_else<-ifelse(dummy$place_home_else=="Yes",1,0)
-dummy$place_work<-ifelse(dummy$place_work=="Yes",1,0)
-dummy$place_worship<-ifelse(dummy$place_worship=="Yes",1,0)
-dummy$place_transport<-ifelse(dummy$place_transport=="Yes",1,0)
-dummy$place_school<-ifelse(dummy$place_school=="Yes",1,0)
-dummy$place_shop_essential<-ifelse(dummy$place_shop_essential=="Yes",1,0)
-dummy$place_shop_non_essential<-ifelse(dummy$place_shop_non_essential=="Yes",1,0)
-dummy$place_entertainment<-ifelse(dummy$place_entertainment=="Yes",1,0)
-dummy$place_sport<-ifelse(dummy$place_sport=="Yes",1,0)
-dummy$place_park<-ifelse(dummy$place_park=="Yes",1,0)
-dummy$place_healthcare<-ifelse(dummy$place_healthcare=="Yes",1,0)
-dummy$place_beauty<-ifelse(dummy$place_beauty=="Yes",1,0)
-dummy$place_inside<-ifelse(dummy$place_inside=="Yes",1,0)
-dummy$place_outside<-ifelse(dummy$place_outside=="Yes",1,0)
-
-
-```
-
-
-###remove <15 yrs
-Age refers to the age of the working person, therefore people <15 out
-```{r remove work contacts that are <15 years old dt_outside_all, results='hide', error = FALSE, warning=FALSE, message=FALSE}
-                
+dummy <- merge(dummy, dt_outside_all, by=c("new_id", "wave"), all.y =T) # number of obs should be the same as the largest dataset because only new cols (y) will be added
 dummy$place_work[(dummy$age_group_participant=="Under 1" | 
                     dummy$age_group_participant=="1-4" |
                     dummy$age_group_participant=="5-9" | 
                     dummy$age_group_participant=="10-14") & 
                     dummy$place_work==1 ] <- 0
 
-```
+dt_outside_all <- dummy %>% select(-c(age_group_participantt))
 
-###replace NA
-replaces NA by 0(No) => is it reasonable?
-Need motivation for doing this?
-```{r NA handling in place-variables dt_outside_all}
-
-levels(dummy$place_home_own) #check for factors (example)
-
-dummy$place_home_own[is.na(dummy$place_home_own)] <- 0 #change to 0
-
-dummy$place_home_else[is.na(dummy$place_home_else)] <- 0 #change to 0
-
-dummy$place_work[is.na(dummy$place_work)] <- 0 #change to 0
-
-dummy$place_worship[is.na(dummy$place_worship)] <- 0 #change to 0
-
-dummy$place_transport[is.na(dummy$place_transport)] <- 0 #change to 0
-
-dummy$place_school[is.na(dummy$place_school)] <- 0 #change to 0
-
-dummy$place_shop_essential[is.na(dummy$place_shop_essential)] <- 0 #change to 0
-
-dummy$place_shop_non_essential[is.na(dummy$place_shop_non_essential)] <- 0 #change to 0
-
-dummy$place_entertainment[is.na(dummy$place_entertainment)] <- 0 #change to 0
-
-dummy$place_sport[is.na(dummy$place_sport)] <- 0 #change to 0
-
-dummy$place_park[is.na(dummy$place_park)] <- 0 #change to 0
-
-dummy$place_healthcare[is.na(dummy$place_healthcare)] <- 0 #change to 0
-
-dummy$place_beauty[is.na(dummy$place_beauty)] <- 0 #change to 0
-
-dummy$place_inside[is.na(dummy$place_inside)] <- 0 #change to 0
-
-dummy$place_outside[is.na(dummy$place_outside)] <- 0 #change to 0
-
-dt_outside_all <- dummy %>% select(-c(age_group_participant)) # new data frame and delete age_group participant
-
-rm(dummy) #delete dummy and get the final "dt_outside"
-
-```
-##dt_hh_all
-###check levels
-
-```{r check levels of place-variables dt_hh_all transform place_oth and yes no answers, results='hide', error = FALSE, warning=FALSE, message=FALSE}
-
-## create dummy (smaller dataset with dt_hh_all)
-dummy <- d_self_all %>% select(new_id, wave, age_group)
-dummynames<-c("new_id","wave", "age_group_participant")
-colnames(dummy) <- dummynames
-dummy <- merge(dummy, dt_hh_all, by=c("new_id", "wave"), all.y=T) # is enough specificity level ???
-
-# dummy$place_oth <- as.factor(dummy$place_oth) #change character to factor##why?
-
-dummy$place_oth[is.na(dummy$place_oth)] <- 0 #change to 0
-
-
-dummy$place_home_own<-ifelse(dummy$place_home_own=="Yes",1,0)
-dummy$place_home_else<-ifelse(dummy$place_home_else=="Yes",1,0)
-dummy$place_work<-ifelse(dummy$place_work=="Yes",1,0)
-dummy$place_worship<-ifelse(dummy$place_worship=="Yes",1,0)
-dummy$place_transport<-ifelse(dummy$place_transport=="Yes",1,0)
-dummy$place_school<-ifelse(dummy$place_school=="Yes",1,0)
-dummy$place_shop_essential<-ifelse(dummy$place_shop_essential=="Yes",1,0)
-dummy$place_shop_non_essential<-ifelse(dummy$place_shop_non_essential=="Yes",1,0)
-dummy$place_entertainment<-ifelse(dummy$place_entertainment=="Yes",1,0)
-dummy$place_sport<-ifelse(dummy$place_sport=="Yes",1,0)
-dummy$place_park<-ifelse(dummy$place_park=="Yes",1,0)
-dummy$place_healthcare<-ifelse(dummy$place_healthcare=="Yes",1,0)
-dummy$place_beauty<-ifelse(dummy$place_beauty=="Yes",1,0)
-dummy$place_inside<-ifelse(dummy$place_inside=="Yes",1,0)
-dummy$place_outside<-ifelse(dummy$place_outside=="Yes",1,0)
-
+rm(dummy)
 
 ```
 
-###remove <15 yrs
-Age bezieht sich auf das Alter der arbeitenden Person, daher Personen <15 raus
-Age refers to the age of the working person, therefore people <15 out
+#count multiple contact
 
-```{r remove work contacts that are <15 years old dt_hh_all, results='hide', error = FALSE, warning=FALSE, message=FALSE}
-
-dummy$place_work[(dummy$age_group_participant=="Under 1" | 
-                    dummy$age_group_participant=="1-4" |
-                    dummy$age_group_participant=="5-9" | 
-                    dummy$age_group_participant=="10-14") & 
-                   dummy$place_work==1 ] <- 0
-```
-
-###replace NA
-replaces NA by 0(No) => is it reasonable?
-Need motivation for doing this?
-
-```{r NA handling in place-variables dt_hh_all}
-
-dummy$place_home_own[is.na(dummy$place_home_own)] <- 0 #change to 0
-
-dummy$place_home_else[is.na(dummy$place_home_else)] <- 0 #change to 0
-
-dummy$place_work[is.na(dummy$place_work)] <- 0 #change to 0
-
-dummy$place_worship[is.na(dummy$place_worship)] <- 0 #change to 0
-
-dummy$place_transport[is.na(dummy$place_transport)] <- 0 #change to 0
-
-dummy$place_school[is.na(dummy$place_school)] <- 0 #change to 0
-
-dummy$place_shop_essential[is.na(dummy$place_shop_essential)] <- 0 #change to 0
-
-dummy$place_shop_non_essential[is.na(dummy$place_shop_non_essential)] <- 0 #change to 0
-
-dummy$place_entertainment[is.na(dummy$place_entertainment)] <- 0 #change to 0
-
-dummy$place_sport[is.na(dummy$place_sport)] <- 0 #change to 0
-
-dummy$place_park[is.na(dummy$place_park)] <- 0 #change to 0
-
-dummy$place_healthcare[is.na(dummy$place_healthcare)] <- 0 #change to 0
-
-dummy$place_beauty[is.na(dummy$place_beauty)] <- 0 #change to 0
-
-dummy$place_inside[is.na(dummy$place_inside)] <- 0 #change to 0
-
-dummy$place_outside[is.na(dummy$place_outside)] <- 0 #change to 0
-
-dt_hh_all <- dummy %>% select(-c(age_group_participant)) # new data frame and delete age_group participant
-
-rm(dummy) #delete dummy and get final "dt_hh"
-
-```
-
-###hh_p_inc variables
-This chunk deals with the problem of different hh_p_inc variables???? 
-
-```{r merge households}
-# # Household sizes
-# d_self_all <- d_self_all %>% mutate(hh_p_incl_0 = ifelse(wave > 0, (hh_p_incl_0+1), hh_p_incl_0)) # why +1
-# 
-# #reorder
-# # d_self_all <- d_self_all %>% 
-# # relocate(hh_p_incl_new_0, .after = hh_p_incl_0)
-# 
-# 
-# #merge #hh_p_incl_0 & #hh_p_incl_new_0 at position with NAs
-# d_self_all <- d_self_all %>% 
-#   mutate(hh_p_incl_0 = replace(hh_p_incl_0, is.na(hh_p_incl_0), hh_p_incl_new_0[2985:5679]))
-# 
-# #drop variable since we do not need anymore
-# d_self_all$hh_p_incl_new_0 <- NULL
-# 
-# d_self_all$age_group_new <- d_self_all$age_group
-
-```
-  
-
-###count multiple contact
 place_.. variable is not consistent in format:
-- data type: factor(almost) and character(place_oth)
-- value:[0,1] (almost) and [yes,no] (place_dk)
+- most of variables are labeled ["Yes","No","NA], but **place_oth** contain[ NA, "1"].
+=> should we replace place_oth by place_12 ? 
+But, in the non_hh_contact_number function, the variable used is place_oth and the format used is correct. So this shouldn't be a problem!
+
+
 
 ```{r Count multiple contacts}
 
-# # variable is presented in the dataset, no need to calculate again. so, the code below is refrence when needed
-# dt_hh_all <- dt_hh_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == 1, na.rm=TRUE))
+# 
+dt_hh_all <- dt_hh_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == "Yes", na.rm=TRUE))
 
-dt_hh_all <- dt_hh_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == 1, na.rm=TRUE)) #delete this code may cause error in te next chunk?
+dt_hh_all <- dt_hh_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == "Yes", na.rm=TRUE)) #delete this code may cause error in te next chunk?
 
 table(dt_hh_all$place_multiple)
 
-# dt_hh_all$place_multiple <- as.integer(dt_hh_all$place_multiple >= 2) # sum of at least 2 places
+#this code convert...to binary value: 0 (No), 1(Yes)
+#Veronika's version is integer
+dt_hh_all$place_multiple <- as.factor(as.integer(dt_hh_all$place_multiple >= 2))
 
-dt_outside_all <- dt_outside_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == 1, na.rm=TRUE))
+dt_outside_all <- dt_outside_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == "Yes", na.rm=TRUE))
 
 table(dt_outside_all$place_multiple)
 
-# dt_outside_all$place_multiple <- as.integer(dt_outside_all$place_multiple >= 2)
+dt_outside_all$place_multiple <- as.factor(as.integer(dt_outside_all$place_multiple >= 2))
 
 
 ```
 
 # contacts per ID and wave
-warning: change all.x=T instead of all =T where merge function was used
+
+**this variable below is non_hh_contact**
+place_home_own ->home_own_contact_n
+place_home_else ->home_else_contact_n
+place_work-> simmilar pattern
+place_worship
+place_transport
+place_school
+place_shop_essential
+place_shop_non_essential
+place_entertainment (e.g. restaurant, bar/pub, cinema)
+place_sport
+place_park
+place_healthcare
+place_beauty
+place_oth 
+
+**not_specified_contact_n** : the respondent did not chose any place above, except place_oth (i.e.the respondent ["27e7cde0"
+, wave 23] report 15 contacts, 1 is place_oth_n => not_specified_contact_n is 14 )
+
+**leisure_contact_n* : contact at either home_own|home_else|worship|shop_non_essential|entertainment|sport|park|beauty
+**other_combined_contact_n** ( the reast places) includes transport|healthcare|shop_essential|place_oth
+**all_contact_n** includes hh_contacts_n and non_hh_contact_n
+**all_contact_n_inside** includes hh_contacts_n and non_hh_contact_n inside
+**all_contact_n_outside** includes hh_contacts_n and non_hh_contact_n outside
+
+*work and school are not grouped into these variables
+- It is possible that a respondent meet the same person at different places (i.e: meet at bar, and then go home together [ wave 6, 004eff99: non_hh_contact_n is 2 ,but has 1 home_own_contact_n
+ and 2 entertainment_contact_n
+])
+
+* merge function: all = T  => "More rows than expected!" (59 more rows added). So, I set all.x =T instead. The number of row now is equal.
+But, this raise a concern about data set
+a <- d_self_all%>% filter (new_id == "2d403424")-> 1 result
+a1 <- hh_contacts%>% filter (new_id == "2d403424") -> 8 results
+
+Similar new_id: 221715af, 309e56ad, 59793b54,71c9e526,....
+
 ```{r Summarize number of contacts per ID and wave}
 # All contacts (inside and outside)
 ## Function used here can be found in function chunk
@@ -1309,19 +1193,42 @@ nrow(d_self_all)
 nrow(hh_contacts)      # must be <= nrow(d_self_all)
 nrow(outside_contacts) # must be <= nrow(d_self_all)
 
-# #one obs(new_id) per wave (wave) may have both hh_contacts and outside_contacts => merged data can be larger than either original files
+#create new_id_wave contain new_id and wave information. This should be unique in d_self_all, hh_contacts , and  outside_contacts dataset.All new_id_wave in hh_contacts and  outside_contacts should be in d_self_all. Check if this true!
+hh_contacts$new_id_wave <- paste0(hh_contacts$new_id,"_",hh_contacts$wave)
+outside_contacts$new_id_wave <- paste0(outside_contacts$new_id,"_",outside_contacts$wave)
+d_self_all$new_id_wave <- paste0(d_self_all$new_id,"_",d_self_all$wave)
+#checking
+a <- summary(hh_contacts$new_id_wave %in% d_self_all$new_id_wave)
+if (a[[3]] != dim(hh_contacts)[1]){
+  print("Warning:some unique id in hh_contact may not be in d_sell_all or vice versa")
+}
+b <- summary(outside_contacts$new_id_wave %in% d_self_all$new_id_wave)
+if (a[[3]] != dim(outside_contacts)[1]){
+  print("Warning:some unique id in outside_contacts may not be in d_sell_all or vice versa")
+}
+rm(a,b)
 
-d_all_wide <- merge(d_self_all, hh_contacts, by=c("new_id", "wave"), all.x=T) #all.x: more variable but less row
+# # subset to see what make the difference (if any)
+# ##switch on when further investigation needed
+# hh_contacts_diff <- hh_contacts[which(hh_contacts$new_id_wave %in% d_self_all$new_id_wave==FALSE),]
+# outside_contacts_diff <- outside_contacts[which(outside_contacts$new_id_wave %in% d_self_all$new_id_wave==FALSE),]
+# a <- d_self_all%>% filter (new_id == "71c9e526")
+# a1 <- hh_contacts%>% filter (new_id == "71c9e526")
+
+
+#integrate dataset
+
+d_all_wide <- merge(d_self_all, hh_contacts, by=c("new_id", "wave"), all =T) 
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
 d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
 
 
 # Inside contacts
-aux_hh <- dt_hh_all %>% filter(place_inside==1) #1 = Yes, 0=No
+aux_hh <- dt_hh_all %>% filter(place_inside=="Yes") #1 = Yes, 0=No
 hh_contacts <- hh_contact_number(aux_hh, new_id, wave)
 
-aux_outside <- dt_outside_all %>% filter(place_inside==0)
+aux_outside <- dt_outside_all %>% filter(place_inside=="No")
 outside_contacts <- non_hh_contact_number(aux_outside, new_id, wave)
 
 nrow(d_self_all)
@@ -1341,10 +1248,10 @@ names(d_all_wide)
 
 
 # Outside contacts
-aux_hh <- dt_hh_all %>% filter(place_outside==1)#1 = Yes, 0=No
+aux_hh <- dt_hh_all %>% filter(place_outside=="Yes")#1 = Yes, 0=No
 hh_contacts <- hh_contact_number(aux_hh, new_id, wave)
 
-aux_outside <- dt_outside_all %>% filter(place_outside==1)
+aux_outside <- dt_outside_all %>% filter(place_outside=="NO")
 outside_contacts <- non_hh_contact_number(aux_outside, new_id, wave)
 
 nrow(d_self_all)
@@ -1369,8 +1276,10 @@ for(current_variable in names(d_all_wide)[grep("contact_n", names(d_all_wide))])
 # all contacts
 d_all_wide$all_contact_n <- 
   d_all_wide$hh_contact_n + d_all_wide$non_hh_contact_n
+
 d_all_wide$all_contact_n_inside <- 
   d_all_wide$hh_contact_n_inside + d_all_wide$non_hh_contact_n_inside
+
 d_all_wide$all_contact_n_outside <- 
   d_all_wide$hh_contact_n_outside + d_all_wide$non_hh_contact_n_outside
 
@@ -1908,7 +1817,7 @@ d_all_wide$all_contact_n_Q79 <- d_all_wide$all_contact_n +
 
 #contact dataset with keys parameter
 ```{r}
-
+###1 non_hh contact with subgroup
 non_hh_Q75 <- d_all_wide %>% select("wave_0",contains("contact_n_Q75"))%>%select(-c(contains("lshtm")))%>%select(-c(contains("all")))
 
 non_hh_Q75 <- melt(non_hh_Q75,id.vars="wave_0")
@@ -1922,7 +1831,7 @@ ggplot(non_hh_Q75, aes( x=wave_0, y=value, colour=variable, fill=variable ))+
   scale_x_continuous(breaks = seq(1,current_wave,2))+
   # scale_x_discrete("",labels = c(WAVES))+ #
   labs(y="Mean_contacts_Q75",x="wave")
-
+###2 hh contact with subgroup
 hh <- d_all_wide %>% select("wave_0",contains("hh_contact_"))%>%select(-c(contains("non")))
 
 hh <- melt(hh,id.vars="wave_0")
@@ -1933,6 +1842,37 @@ ggplot(hh, aes( x=wave_0, y=value, colour=variable, fill=variable ))+
     stat_summary(geom="line", fun=mean, linetype="dashed")+
     stat_summary(geom="point", fun=mean)+
   scale_fill_manual(values = c("#fee8c8","#e34a33","#2b8cbe"))+
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+  # scale_x_discrete("",labels = c(WAVES))+ #
+  labs(y="Mean_contacts_Q75",x="wave")
+
+
+##3 all contact with diffeerent approach
+contact_all <- d_all_wide %>% select("wave_0",contains("all_contact_"))%>%select(-c(contains("inside")))%>%select(-c(contains("outside")))
+contact_all <- melt(contact_all,id.vars="wave_0")
+
+ggplot(contact_all, aes( x=wave_0, y=value, colour=variable, fill=variable ))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95))+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean)+
+  # scale_color_manual(values = c("#fee8c8","#e34a33","#2b8cbe","#a6bddb"))+
+  scale_fill_manual(values = c("#fee8c8","#e34a33","#2b8cbe","#a6bddb"))+
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+  # scale_x_discrete("",labels = c(WAVES))+ #
+  labs(y="Mean_contacts_Q75",x="wave")
+
+##4 all contact vs. vaccination status
+contact_all_vac <- d_all_wide %>% select("wave_0","own_vacc_0",contains("all_contact_n_Q75"))%>%select(-c(contains("lshtm")))
+# contact_all_vac <- melt(contact_vac,id.vars="wave_0")
+
+ggplot(contact_all_vac, aes( x=wave_0, y=all_contact_n_Q75, colour=own_vacc_0, fill=own_vacc_0 ))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95))+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean)+
+  # scale_color_manual(values = c("#fee8c8","#e34a33","#2b8cbe","#a6bddb"))+
+  scale_fill_manual(values = c("#fee8c8","#e34a33","#2b8cbe","#a6bddb"))+
   scale_x_continuous(breaks = seq(1,current_wave,2))+
   # scale_x_discrete("",labels = c(WAVES))+ #
   labs(y="Mean_contacts_Q75",x="wave")
@@ -3026,10 +2966,8 @@ table1::table1(~age_group_tab + +gender_0 + hh_p_incl_0_2 + qmktsize_16_0 |wave_
 ```
 
 
-# Graphics
-Grafiken 
-
 ## Kontaktplots
+Q79 , check Q75,etc.....
 
 ```{r}
 plot_1_se <- summarySE(d_all_wide, measurevar =  "all_contact_n_Q79",groupvar = c("wave_two", "qmktsize_16_0"),na.rm = TRUE)
@@ -3052,9 +2990,10 @@ aaa <- ggplot(d_all_wide, aes(y=all_contact_n_Q79, x= as.factor(wave_two))) +
   theme(text = element_text(size=6.5)) +
   labs(fill = "Area") +
   scale_fill_manual(values=c("#E64B35B2", "#00A087B2", "#4DBBD5B2")) +
-  theme(legend.position="none") +
+  # theme(legend.position="none") +
   labs(title = "Number of all contacts per wave and area") +
-  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 90)) +
   theme(panel.grid.minor = element_blank())
 
 aaa
@@ -3076,9 +3015,10 @@ bbb <- ggplot(d_all_wide, aes(y=non_hh_contact_n_Q79, x= as.factor(wave_two))) +
   theme(text = element_text(size=6.5)) +
   labs(fill = "Area") +
   scale_fill_manual(values=c("#E64B35B2", "#00A087B2", "#4DBBD5B2")) +
-  theme(legend.position="none") +
+  # theme(legend.position="none") +
   labs(title = "Number of non-household contacts per wave and area") +
-  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 90)) +
   theme(panel.grid.minor = element_blank())
 
 bbb
@@ -3100,9 +3040,10 @@ ccc <- ggplot(d_all_wide, aes(y=hh_contact_n, x= as.factor(wave_two))) +
   #stat_summary(fun=mean, geom="point",  aes(group=qmktsize_16_0), position=position_dodge(.75),
                #color="red", size=1.5) +
   scale_fill_manual(values=c("#E64B35B2", "#00A087B2", "#4DBBD5B2")) +
-  theme(legend.position="none") +
+  # theme(legend.position="none") +
   labs(title = "Number of household-contacts per wave and area") +
-  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 90)) +
   theme(panel.grid.minor = element_blank())
 
 ccc
@@ -3204,6 +3145,7 @@ dt_hh_all$place_oth[is.na(dt_hh_all$place_oth)] <- 0
 #dt_outside_all$place_oth[which(dt_outside_all$place_oth==2)] <- 0
 # merge data
 # d_self_all and dummy_hh_group, includes group contacts!
+
 dummy_hh_group <- d_self_all %>% select(new_id, wave, qmktsize_16_0,Q79a_age_met_work_u18,
                                Q79a_age_met_work_1864, Q79a_age_met_work_o64, 
                                Q80a_age_met_uni_u18, Q80a_age_met_uni_1864,
@@ -3258,6 +3200,7 @@ dummy_outside_densely <- dummy_outside[which(dummy_outside$qmktsize_16_0=="Dense
 ```
 ## Version 1: All contact (including goup contacts)
 ####No stratification
+home_own occupy a large proportion => check 
 
 ```{r Version 1 thinly populated}
 ## plot for thinly
