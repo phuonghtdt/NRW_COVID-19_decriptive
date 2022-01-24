@@ -1,20 +1,19 @@
 ---
-title: "COVIMOD"
-output:  
-  html_document:
-    toc: true
-    toc_float: true
-    theme: united
-    fig_caption: yes
-    toc_depth: 6
-editor_options: 
-  chunk_output_type: console
+title: "Contact survey (COVIMOD) in NRW"
+author: "Thi Phuong Huynh"
 ---
 
-#set up
+# set up
+
+Date: <b>`r format(Sys.Date(), "%B %d, %Y")`</b>
+
+All computations were performed with `r R.Version()$version.string`.
+
+This work is adapted from Veronika's codes
+
 ```{r Options, include=FALSE}
 rm(list = ls())
-knitr::opts_chunk$set(fig.retina = 1, fig.height = 7, fig.width = 7,
+knitr::opts_chunk$set(fig.retina = 1, fig.height = 7, fig.width = 14,
                       echo = FALSE, message = FALSE, warning = FALSE,
                       results='hide')
 Sys.setlocale("LC_TIME", "C")
@@ -27,27 +26,7 @@ path_figures <- "C:/Users/huynh/sciebo/NRW_descriptive/results/covimod"
 path_contact_pattern <- "C:/Users/huynh/sciebo/NRW_descriptive/results/covimod/contact_pattern"
 
 
-```
-
-#changeable variables
-```{r}
-#at which number should group contacts be truncated?
-truncate <- 100 #question 100 ?
-truncate_lshtm <- 50 #
-current_wave <-32
-base_size <- 10 # size of the font in plot
-
-
-```
-
-#library
-
-Date: <b>`r format(Sys.Date(), "%B %d, %Y")`</b>
-
-All computations were performed with `r R.Version()$version.string`.
-
-```{r Packages}
-# {r Packages, echo = TRUE, message = TRUE, warning = TRUE, results='markup', comment=""}
+# library loading
 library(dplyr)
 library(ggplot2)
 library(tidyverse)
@@ -58,7 +37,6 @@ library(Hmisc)
 library(epiDisplay)
 library(summarytools)
 library(patchwork)
-# library(ggthemr)# no package possible
 library(gtsummary)
 library(table1)
 library(readxl)
@@ -83,12 +61,23 @@ library(tidyselect)
 library(socialmixr)
 # https://cran.r-project.org/web/packages/socialmixr/vignettes/introduction.html
 library(RColorBrewer) # used to customize (heatmap) color
-library(ComplexHeatmap) # heatmap
 library(ggmosaic)
 library(gridExtra)
 library(grid)
 library(Rmisc)
 library(gtable)
+
+```
+
+#changeable variables
+
+```{r}
+#at which number should group contacts be truncated?
+truncate <- 100 #question 100 ?
+truncate_lshtm <- 50 #
+current_wave <-32
+base_size <- 10 # size of the font in plot
+
 
 ```
 
@@ -592,9 +581,175 @@ my.boxplots <- function(x, current_contact_variable, TITLE) {
   print(eval(parse(text = text2eval)))
 }
 
+########################################
+#Thease function below for discriptive table, figures ,etc
+#######################################
+
+######DONT FORGET TO CHANGE IF MORE WAVES ARE ADDED!!!!
+
+## Prepare function to get all contacts
+get_contacts <- function(data,waves=c(1:current_wave),min.waves=length(waves),include.group = F) {
+  
+  x <- data
+  waves <- levels(x$wave)[waves]
+  IDS <- x %>%
+    filter(wave %in% waves) %>%
+    mutate(wave = droplevels(wave))%>%
+    group_by(new_id) %>%
+    dplyr::summarise(n_waves = n()) %>%
+    filter(n_waves >= min.waves) %>% dplyr::select(new_id) %>% pull
+  
+  dat <- x %>%
+    filter(wave %in% waves) %>%
+    mutate(wave = droplevels(wave)) %>%
+    filter(new_id %in% IDS)
+  
+  return(dat)
+}
+
+
+
+# Prepare function to get random rows. Used to highlight random slopes in spaghetti plot
+random_subset <- function(x) {
+  id <- sample(1:length(x), length(x)/10, replace=T)
+  x[id] <- 1
+  x[-id] <- 0
+  x <- as.numeric(x)
+  return(x)
+}
+
+# Function to compute change relative to previous wave
+relative.change <- function(x) { c(0,diff(x[1:length(x)],differences=1))}
+
+
+# Function to prepare spaghetti plots
+spaghetti.plot <- function(data,waves=levels(data$wave),relative=F,log=F,alpha=.1,title="only participants with observations in at least two time-points") {
+
+  if(relative == T) {data <- data %>% group_by(new_id) %>% mutate(contacts = relative.change(contacts))}
+  
+  p <- data %>%
+        filter(wave %in% waves) %>%
+        mutate(random = as.factor(random_subset(contacts))) %>%
+        ggplot(aes(x=wave,y=contacts)) +
+        geom_line(aes(group=new_id),alpha=alpha) + 
+        geom_point(alpha=alpha) +
+        theme(legend.position = "none",
+              axis.text.x = element_text(angle = 90)) +
+        ggtitle(paste0(title))
+  
+  if(log==T) {p <- p +   scale_y_log10() + ylab("contacts[logscale]") }
+  
+  print(p)
+
+}
+
+# Function to prepare boxplots
+my.boxplot <- function(x,waves=levels(x$wave),relative=F,log=F,title="only participants with observations in at least two time-points") {
+
+  if(relative == T) {x <- x %>% group_by(new_id) %>% mutate(contacts = relative.change(contacts))}
+  
+  p <- x %>%
+        filter(wave %in% waves) %>%
+        ggplot(aes(x=wave,y=contacts)) +
+        geom_boxplot() + 
+        stat_summary(fun=mean, geom="point", shape=20,col="black",size=1, fill="red",aes(shape="mean")) +
+        stat_summary(fun=mean,group=1, geom="line",col="black",size=1,linetype="dashed") +
+        theme(legend.position = "none",
+              axis.text.x = element_text(angle = 90)) +
+        ggtitle(paste0(title))
+  
+  if(log==T) {p <- p +   scale_y_log10() + ylab("contacts[logscale]") }
+  
+  print(p)
+
+}
+
+
+##########################
+#### Make UpSet plots ####
+##########################
+
+
+plot.upset <- function(x) {
+  
+#x <- x %>% filter(contacts>0)
+
+m <- table(x$new_id,x$wave) %>%
+  make_comb_mat()
+
+ht <- UpSet(m,
+      comb_order = order(comb_size(m),decreasing = T),
+      set_order = order(set_size(m)),
+      row_names_side = "right",
+      right_annotation = NULL,
+      comb_col = "#3B3B3B",
+      left_annotation = rowAnnotation(
+        "Set size" = anno_barplot(set_size(m), 
+                                  axis_param = list(direction = "reverse"),
+                                  border = FALSE, 
+                                  #gp = gpar(fill = mypal,col="white"), 
+                                  width = unit(2, "cm")
+        )))
+
+print(ht)
+
+}
+
+
+###############################
+#### Mean change over time ####
+###############################
+library(boot)
+
+#sample_mean <- function(x,i) {
+#  return(mean(x[i]))
+#}
+
+sample_mean <- function(x,i,j) {
+  d <- x[i]
+  w <- j[i]
+  return(weighted.mean(d,w))
+}
+
+boot_mean <- function(x,w) {
+  set.seed(1234567)
+  bo <- boot(x,sample_mean,R=1000,j=w)
+  ci <- boot.ci(bo, conf=0.95,type="perc")
+  out <- data.frame("mean" = bo$t0,
+              "lower" = ci$perc[4],
+              "upper" = ci$perc[5])
+  return(out)
+}
+
+plot.mean <- function(x,waves=levels(x$wave),weighted=F,R=1000,title="Bootstraped mean value with 95% percentile CI - R = 1000 ") {
+
+if(weighted==T) {
+plot_df <- x %>%
+  filter(wave %in% waves) %>%
+  dplyr::group_by(wave) %>%
+  do(boot_mean(.$contacts,w=.$weight)) %>%
+  ungroup 
+} else {
+plot_df <- x %>%
+  filter(wave %in% waves) %>%
+  dplyr::group_by(wave) %>%
+  do(boot_mean(.$contacts,w=rep(1,nrow(x)))) %>%
+  ungroup  
+  
+}
+}
+
+n_overall.table <- function(x) {
+  table(x) %>% as_tibble() %>% rename("Number of waves" = x, "Number of participants" = n) %>% t() %>% kable %>% kable_styling()
+}
+
+n.table <- function(x) {
+  table(x) %>% as_tibble() %>% rename(Wave = x, Observations = n) %>% t() %>% kable %>% kable_styling()
+}
+
 ```
 
-#Wave label
+#wave label
 
 ```{r Vectors to use}
 WAVES <- c("30.04.–06.05. (W01)",
@@ -671,12 +826,12 @@ HH_OUTSIDE <- c()
 
 palette <- c("#003366", "#336699", "#CCFFFF", "#028482", "#663399", "#990033", "#FF3333", "#FF9900", 
              "#266A2E", "#55D43F", "#404040", "#C87533", "#DCDCDC", "#FFDE00", "#F1B2E1", "#FF717E")
-print(palette)
-scales::show_col(palette)
+# print(palette)
+# scales::show_col(palette)
 
 ```
 
-#data overview
+# Data overview
 
 Each wave contain 3 datasets: d_self_anonymised, dt_hh_anonymised, dt_outside_anonymised.
 
@@ -756,7 +911,7 @@ info_wide <- spread(info_long, wave, included)
 
 ##new questionaire
 
-```{r Data information new questionnaire, i.e. wave 14 onwards, results='markup', comment=""}
+```{r Data information new questionnaire, i.e. wave 14 onwards}
 
 DATA_new <- list.files(path = paste0(path_data,"/new_questionnaire"),
                    pattern = "RData",
@@ -828,18 +983,19 @@ info_long_new <- info_long_new %>% select (-c(n_variable)) # delete n_variable c
 info_wide_new <- spread(info_long_new, wave, included)
 
 ####
-info_long_all1 <- merge(info_long_new1,info_long1, all = TRUE)
-ggplot(info_long_all1,aes(wave, n_variable))+
-  geom_point()+
-  ggtitle("Number of variables in each wave (d_self dataset)")+
-  theme(plot.title = element_text(face = "bold",hjust = 0.5))
+# info_long_all1 <- merge(info_long_new1,info_long1, all = TRUE)
+# ggplot(info_long_all1,aes(wave, n_variable))+
+#   geom_point()+
+#   ggtitle("Number of variables in each wave (d_self dataset)")+
+#   theme(plot.title = element_text(face = "bold",hjust = 0.5))
 
 # write.csv(info_wide_new,paste0(path_data,"/info_wave_14-32.csv"))
 
 ```
 
-#merge data
-## wave 1 to 13
+# Merge data and subset to NRW
+
+##wave 1 to 13
 
 ```{r Read and merge wave 1 to 13 data, comment="", include=FALSE, results='markup'}
 # not the same class across waves:
@@ -920,7 +1076,7 @@ for(current_file in DATA) {
 
 ```
 
-## wave 14 to 28
+##wave 14 to 28
 
 ```{r Read and merge wave 14 to 28 data, comment="", include=FALSE, results='markup'}
 #not the same class across waves:
@@ -1006,14 +1162,6 @@ skin_integer <- c("skin_skin_to_skin","skin_kept_dist_2m" ,"skin_kept_dist_1m", 
 
 ```
 
-# check data in those variables the data class is not matched across wave
-What is the meaning of data class "NA"
-
-```{r}
-table1(~hh_confirm + hh_remove + emp_status_0 | as.factor(wave), data=d_self_all)
-
-```
-
 ##NRW
 Variable: bundesland_0 == "Nordrhein-Westfalen"
 d_self_all: 
@@ -1029,14 +1177,19 @@ dt_hh_all<- dt_hh_all[dt_hh_all$new_id %in% d_self_all$new_id, ] # subset NRW
 ```
 
 
-# translate group contacts
+# Translate group contacts
+
 Q75: Wave 3-13
+
 Q79: Wave 14- onward
-This code below to integrate group contact information across waves ino Q.75 style. 
+
+This code below to integrate group contact information across waves into Q.75 style. 
+
 The missing answer in this question is very high (>85%). The possible reason is the respondent answered the individual contact question and don't care much about this question anymore.
+
 *The missing mean not giving answer ?
 
-```{r translate the group contacts from wave 14 to 22 into wave 3 to 13 style}
+```{r results="asis"}
 # names wave 3-13   new names wave 14 onwards
 # Q75_u18_work	    Q79_age_met_work_u18
 # Q75_1864_work	    Q79_age_met_work_1864
@@ -1083,16 +1236,16 @@ table1(~Q75_u18_work + Q75_1864_work + Q75_1864_work +
   
 ```
 
-# remove work contacts from <15 year olds
+# Remove work contacts from <15 year olds
 The respondent < 15 year-old should not have work contact. Therefore, the work contact with those individuals (if any) should set to 0.
 
-```{r remove work contacts from <15 year olds}
+```{r results="asis"}
 
 #In each wave, each participant (new_id) should be unique, check if it is true.
 for (w in 1:current_wave){
   wave<- d_self_all %>% filter(wave==w)
   if(dim(wave)[1] !=  length(unique(wave$new_id))){
-    print(paste0("new_id is not unique in wave",w))
+    print(paste0("Warning_new_id is not unique in wave",w))
   }
 }
 
@@ -1107,83 +1260,111 @@ dummy$place_work[(dummy$age_group_participant=="Under 1" |
                     dummy$age_group_participant=="10-14") & 
                     dummy$place_work==1 ] <- 0
 
-dt_outside_all <- dummy %>% select(-c(age_group_participantt))
+dt_outside_all <- dummy %>% select(-c(age_group_participant))
 
 rm(dummy)
 
 ```
 
-#count multiple contact
+# Count multiple contact
 
 place_.. variable is not consistent in format:
+
 - most of variables are labeled ["Yes","No","NA], but **place_oth** contain[ NA, "1"].
 => should we replace place_oth by place_12 ? 
+
 But, in the non_hh_contact_number function, the variable used is place_oth and the format used is correct. So this shouldn't be a problem!
 
+**place_multiple**: 1 = 'Yes', 0 = 'No
 
 
-```{r Count multiple contacts}
+```{r }
 
-# 
+# hh data
 dt_hh_all <- dt_hh_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == "Yes", na.rm=TRUE))
-
-dt_hh_all <- dt_hh_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == "Yes", na.rm=TRUE)) #delete this code may cause error in te next chunk?
 
 table(dt_hh_all$place_multiple)
 
 #this code convert...to binary value: 0 (No), 1(Yes)
 #Veronika's version is integer
-dt_hh_all$place_multiple <- as.factor(as.integer(dt_hh_all$place_multiple >= 2))
+dt_hh_all$place_multiple <- as.factor(as.integer(dt_hh_all$place_multiple >= 2))# if place_multiple >- 2 -> assign to 1 ( Yes), otherwise 0 (No)
 
+table(dt_hh_all$place_multiple)
+
+# non_hh data
 dt_outside_all <- dt_outside_all %>% dplyr::mutate(place_multiple = rowSums(select(.,place_home_own:place_oth) == "Yes", na.rm=TRUE))
 
 table(dt_outside_all$place_multiple)
 
 dt_outside_all$place_multiple <- as.factor(as.integer(dt_outside_all$place_multiple >= 2))
 
+table(dt_outside_all$place_multiple)
 
 ```
 
-# contacts per ID and wave
+# Summary tables
+## contacts per ID and wave
 
-**this variable below is non_hh_contact**
-place_home_own ->home_own_contact_n
-place_home_else ->home_else_contact_n
+**These variables below are non_hh_contact**
+
+place_home_own                       -> **home_own_contact_n**
+
+place_home_else                      -> **home_else_contact_n**
+
 place_work-> simmilar pattern
+
 place_worship
+
 place_transport
+
 place_school
+
 place_shop_essential
+
 place_shop_non_essential
+
 place_entertainment (e.g. restaurant, bar/pub, cinema)
+
 place_sport
+
 place_park
+
 place_healthcare
+
 place_beauty
+
 place_oth 
 
 **not_specified_contact_n** : the respondent did not chose any place above, except place_oth (i.e.the respondent ["27e7cde0"
 , wave 23] report 15 contacts, 1 is place_oth_n => not_specified_contact_n is 14 )
 
 **leisure_contact_n* : contact at either home_own|home_else|worship|shop_non_essential|entertainment|sport|park|beauty
+
 **other_combined_contact_n** ( the reast places) includes transport|healthcare|shop_essential|place_oth
+
 **all_contact_n** includes hh_contacts_n and non_hh_contact_n
+
 **all_contact_n_inside** includes hh_contacts_n and non_hh_contact_n inside
+
 **all_contact_n_outside** includes hh_contacts_n and non_hh_contact_n outside
 
 *work and school are not grouped into these variables
+
 - It is possible that a respondent meet the same person at different places (i.e: meet at bar, and then go home together [ wave 6, 004eff99: non_hh_contact_n is 2 ,but has 1 home_own_contact_n
  and 2 entertainment_contact_n
 ])
 
 * merge function: all = T  => "More rows than expected!" (59 more rows added). So, I set all.x =T instead. The number of row now is equal.
+
 But, this raise a concern about data set
+
 a <- d_self_all%>% filter (new_id == "2d403424")-> 1 result
+
 a1 <- hh_contacts%>% filter (new_id == "2d403424") -> 8 results
 
 Similar new_id: 221715af, 309e56ad, 59793b54,71c9e526,....
 
-```{r Summarize number of contacts per ID and wave}
+```{r }
 # All contacts (inside and outside)
 ## Function used here can be found in function chunk
 hh_contacts <- hh_contact_number(dt_hh_all, new_id, wave)
@@ -1200,11 +1381,11 @@ d_self_all$new_id_wave <- paste0(d_self_all$new_id,"_",d_self_all$wave)
 #checking
 a <- summary(hh_contacts$new_id_wave %in% d_self_all$new_id_wave)
 if (a[[3]] != dim(hh_contacts)[1]){
-  print("Warning:some unique id in hh_contact may not be in d_sell_all or vice versa")
+  print("Warning:some unique id (new_id & wave) in hh_contact may not be in d_sell_all")
 }
 b <- summary(outside_contacts$new_id_wave %in% d_self_all$new_id_wave)
 if (a[[3]] != dim(outside_contacts)[1]){
-  print("Warning:some unique id in outside_contacts may not be in d_sell_all or vice versa")
+  print("Warning:some unique id (new_id & wave) in outside_contacts may not be in d_sell_all")
 }
 rm(a,b)
 
@@ -1218,7 +1399,7 @@ rm(a,b)
 
 #integrate dataset
 
-d_all_wide <- merge(d_self_all, hh_contacts, by=c("new_id", "wave"), all =T) 
+d_all_wide <- merge(d_self_all, hh_contacts, by=c("new_id", "wave"), all.x =T) 
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
 d_all_wide <- merge(d_all_wide, outside_contacts, by=c("new_id", "wave"), all.x=T)
 if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
@@ -1316,6 +1497,7 @@ dt_outside_all$con_time[dt_outside_all$con_time=="Don’t know"] <- NA
 dt_hh_all$con_time[dt_hh_all$con_time=="Don’t know"] <- NA
 
 
+#merge contact_duration_mininutes (before wave 13) and con_time (wave 14 onward)
 dt_outside_all <- dt_outside_all %>% mutate (contact_duration_minutes_cat = case_when(questionnaire=="new" ~ con_time, TRUE ~ contact_duration_minutes_cat))
 
 
@@ -1369,139 +1551,139 @@ rm(dummy_0_4, dummy_5_14, dummy_15_59, dummy_60_239, dummy_240)
 #################################################################################################
 
 
-
-###WORK IN PROGRESS
-#################################################################################################
-#relation for bar chart
-# combine relation and relation_child (wave 14 onwards)
-dt_outside_all$relation_2 <- dt_outside_all$relation
-dt_outside_all <- dt_outside_all %>% mutate(relation_2 = case_when(is.na(relation) ~ relation_child, TRUE ~ relation))
-
-dt_outside_all$relation_2[dt_outside_all$relation_2=="School/Uni"] <- "School"
-dt_outside_all$relation_2[dt_outside_all$relation_2=="Kindergarden/School/Uni"] <- "School"
-dt_outside_all$relation_2[dt_outside_all$relation_2=="Spouse/Significant other"] <- "Family (not in household)"
-dt_outside_all$relation_2[dt_outside_all$relation_2=="Babysitter"] <- "Other"
-dt_outside_all$relation_2[dt_outside_all$relation_2=="Client"] <- "Other"
-dt_outside_all$relation_2[dt_outside_all$relation_2=="Don't want to answer" | dt_outside_all$relation_2=="Prefer not to answer" | dt_outside_all$relation_2=="Prefer not to say"] <- NA
-
-###### CAVE Still need to adapt once we also have the relation of children, i.e. QP question
-#### NEED TO UPDATE WORK IN PROGRESS
-
-
-# Contact relation in non-hh contacts
-relation_family <- dt_outside_all %>%
-  filter(relation_2=="Family (not in household)") %>%
-  group_by(new_id, wave) %>%
-  summarise(non_hh_relation_family_contact_n=n())
-
-relation_friend <- dt_outside_all %>%
-  filter(relation_2=="Friend") %>%
-  group_by(new_id, wave) %>%
-  summarise(non_hh_relation_friend_contact_n=n())
-
-relation_other <- dt_outside_all %>%
-  filter(relation_2=="Other") %>%
-  group_by(new_id, wave) %>%
-  summarise(non_hh_relation_other_contact_n=n())
-
-relation_school <- dt_outside_all %>%
-  filter(relation_2=="School") %>%
-  group_by(new_id, wave) %>%
-  summarise(non_hh_relation_school_contact_n=n())
-
-relation_work <- dt_outside_all %>%
-  filter(relation_2=="Work") %>%
-  group_by(new_id, wave) %>%
-  summarise(non_hh_relation_work_contact_n=n())
-
-
-# merge with d_all_wide
-d_all_wide <- merge(d_all_wide, relation_family, by=c("new_id", "wave"), all.x=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, relation_friend, by=c("new_id", "wave"), all.x=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, relation_other, by=c("new_id", "wave"), all.x=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, relation_school, by=c("new_id", "wave"), all.x=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, relation_work, by=c("new_id", "wave"), all.x=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-
-
-# any NA in _contact_n means zero contacts in that setting
-for(current_variable in names(d_all_wide)[grep("contact_n", names(d_all_wide))]) {
-  d_all_wide[is.na(d_all_wide[, current_variable]), current_variable] <- 0
-}
-
-rm(relation_family, relation_friend, relation_other, relation_school, relation_work)
-
-table1::table1(~non_hh_relation_family_contact_n + non_hh_relation_friend_contact_n + non_hh_relation_other_contact_n + non_hh_relation_school_contact_n + non_hh_relation_work_contact_n | wave, data=d_all_wide)
-
-#################################################################################################
-#################################################################################################
-
-
-
-
-#################################################################################################
-#how often before COVID for bar chart
-dt_outside_all$time_before_COV_2 <- dt_outside_all$time_before_COV
-dt_outside_all$time_before_COV_2[dt_outside_all$time_before_COV=="Prefer not to answer" | dt_outside_all$time_before_COV=="Don’t know"] <- NA
-
-# How regularly met before COVID in non-hh contacts
-before_once_week <- dt_outside_all %>% 
-  filter(time_before_COV_2=="About once or twice a week") %>% 
-  group_by(new_id, wave) %>% 
-  dplyr::summarise(non_hh_before_onceweek_contact_n=n())
-
-before_once_month <- dt_outside_all %>% 
-  filter(time_before_COV_2=="About once per month") %>% 
-  group_by(new_id, wave) %>% 
-  dplyr::summarise(non_hh_before_oncemonth_contact_n=n())
-
-before_2_weeks <- dt_outside_all %>% 
-  filter(time_before_COV_2=="Every 2-3 weeks") %>% 
-  group_by(new_id, wave) %>% 
-  dplyr::summarise(non_hh_before_2weeks_contact_n=n())
-
-before_every_day <- dt_outside_all %>% 
-  filter(time_before_COV_2=="Every day or almost every day") %>% 
-  group_by(new_id, wave) %>% 
-  dplyr::summarise(non_hh_before_everyday_contact_n=n())
-
-before_less_month <- dt_outside_all %>% 
-  filter(time_before_COV_2=="Less often than once per month") %>% 
-  group_by(new_id, wave) %>% 
-  dplyr::summarise(non_hh_before_lessmonth_contact_n=n())
-
-before_never <- dt_outside_all %>% 
-  filter(time_before_COV_2=="Never met them before") %>% 
-  group_by(new_id, wave) %>% 
-  dplyr::summarise(non_hh_before_never_contact_n=n())
-
-
-# merge with d_all_wide
-d_all_wide <- merge(d_all_wide, before_once_week, by=c("new_id", "wave"), all.x=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, before_once_month, by=c("new_id", "wave"), all.x=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, before_2_weeks, by=c("new_id", "wave"), all.x=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, before_every_day, by=c("new_id", "wave"), all.x=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, before_less_month, by=c("new_id", "wave"), all.x=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-d_all_wide <- merge(d_all_wide, before_never, by=c("new_id", "wave"), all.x=T)
-if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
-
-# any NA in _contact_n means zero contacts in that setting
-for(current_variable in names(d_all_wide)[grep("contact_n", names(d_all_wide))]) {
-  d_all_wide[is.na(d_all_wide[, current_variable]), current_variable] <- 0
-}
-
-rm(before_once_week, before_once_month, before_2_weeks, before_every_day, before_less_month, before_never)
-
-table1::table1(~non_hh_before_onceweek_contact_n + non_hh_before_oncemonth_contact_n + non_hh_before_2weeks_contact_n + non_hh_before_everyday_contact_n + non_hh_before_lessmonth_contact_n + non_hh_before_never_contact_n | wave, data=d_all_wide)
+# 
+# ###WORK IN PROGRESS
+# #################################################################################################
+# #relation for bar chart
+# # combine relation and relation_child (wave 14 onwards)
+# dt_outside_all$relation_2 <- dt_outside_all$relation
+# dt_outside_all <- dt_outside_all %>% mutate(relation_2 = case_when(is.na(relation) ~ relation_child, TRUE ~ relation))
+# 
+# dt_outside_all$relation_2[dt_outside_all$relation_2=="School/Uni"] <- "School"
+# dt_outside_all$relation_2[dt_outside_all$relation_2=="Kindergarden/School/Uni"] <- "School"
+# dt_outside_all$relation_2[dt_outside_all$relation_2=="Spouse/Significant other"] <- "Family (not in household)"
+# dt_outside_all$relation_2[dt_outside_all$relation_2=="Babysitter"] <- "Other"
+# dt_outside_all$relation_2[dt_outside_all$relation_2=="Client"] <- "Other"
+# dt_outside_all$relation_2[dt_outside_all$relation_2=="Don't want to answer" | dt_outside_all$relation_2=="Prefer not to answer" | dt_outside_all$relation_2=="Prefer not to say"] <- NA
+# 
+# ###### CAVE Still need to adapt once we also have the relation of children, i.e. QP question
+# #### NEED TO UPDATE WORK IN PROGRESS
+# 
+# 
+# # Contact relation in non-hh contacts
+# relation_family <- dt_outside_all %>%
+#   filter(relation_2=="Family (not in household)") %>%
+#   group_by(new_id, wave) %>%
+#   summarise(non_hh_relation_family_contact_n=n())
+# 
+# relation_friend <- dt_outside_all %>%
+#   filter(relation_2=="Friend") %>%
+#   group_by(new_id, wave) %>%
+#   summarise(non_hh_relation_friend_contact_n=n())
+# 
+# relation_other <- dt_outside_all %>%
+#   filter(relation_2=="Other") %>%
+#   group_by(new_id, wave) %>%
+#   summarise(non_hh_relation_other_contact_n=n())
+# 
+# relation_school <- dt_outside_all %>%
+#   filter(relation_2=="School") %>%
+#   group_by(new_id, wave) %>%
+#   summarise(non_hh_relation_school_contact_n=n())
+# 
+# relation_work <- dt_outside_all %>%
+#   filter(relation_2=="Work") %>%
+#   group_by(new_id, wave) %>%
+#   summarise(non_hh_relation_work_contact_n=n())
+# 
+# 
+# # merge with d_all_wide
+# d_all_wide <- merge(d_all_wide, relation_family, by=c("new_id", "wave"), all.x=T)
+# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+# d_all_wide <- merge(d_all_wide, relation_friend, by=c("new_id", "wave"), all.x=T)
+# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+# d_all_wide <- merge(d_all_wide, relation_other, by=c("new_id", "wave"), all.x=T)
+# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+# d_all_wide <- merge(d_all_wide, relation_school, by=c("new_id", "wave"), all.x=T)
+# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+# d_all_wide <- merge(d_all_wide, relation_work, by=c("new_id", "wave"), all.x=T)
+# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+# 
+# 
+# # any NA in _contact_n means zero contacts in that setting
+# for(current_variable in names(d_all_wide)[grep("contact_n", names(d_all_wide))]) {
+#   d_all_wide[is.na(d_all_wide[, current_variable]), current_variable] <- 0
+# }
+# 
+# rm(relation_family, relation_friend, relation_other, relation_school, relation_work)
+# 
+# table1::table1(~non_hh_relation_family_contact_n + non_hh_relation_friend_contact_n + non_hh_relation_other_contact_n + non_hh_relation_school_contact_n + non_hh_relation_work_contact_n | wave, data=d_all_wide)
+# 
+# #################################################################################################
+# #################################################################################################
+# 
+# 
+# 
+# 
+# #################################################################################################
+# #how often before COVID for bar chart
+# dt_outside_all$time_before_COV_2 <- dt_outside_all$time_before_COV
+# dt_outside_all$time_before_COV_2[dt_outside_all$time_before_COV=="Prefer not to answer" | dt_outside_all$time_before_COV=="Don’t know"] <- NA
+# 
+# # How regularly met before COVID in non-hh contacts
+# before_once_week <- dt_outside_all %>% 
+#   filter(time_before_COV_2=="About once or twice a week") %>% 
+#   group_by(new_id, wave) %>% 
+#   dplyr::summarise(non_hh_before_onceweek_contact_n=n())
+# 
+# before_once_month <- dt_outside_all %>% 
+#   filter(time_before_COV_2=="About once per month") %>% 
+#   group_by(new_id, wave) %>% 
+#   dplyr::summarise(non_hh_before_oncemonth_contact_n=n())
+# 
+# before_2_weeks <- dt_outside_all %>% 
+#   filter(time_before_COV_2=="Every 2-3 weeks") %>% 
+#   group_by(new_id, wave) %>% 
+#   dplyr::summarise(non_hh_before_2weeks_contact_n=n())
+# 
+# before_every_day <- dt_outside_all %>% 
+#   filter(time_before_COV_2=="Every day or almost every day") %>% 
+#   group_by(new_id, wave) %>% 
+#   dplyr::summarise(non_hh_before_everyday_contact_n=n())
+# 
+# before_less_month <- dt_outside_all %>% 
+#   filter(time_before_COV_2=="Less often than once per month") %>% 
+#   group_by(new_id, wave) %>% 
+#   dplyr::summarise(non_hh_before_lessmonth_contact_n=n())
+# 
+# before_never <- dt_outside_all %>% 
+#   filter(time_before_COV_2=="Never met them before") %>% 
+#   group_by(new_id, wave) %>% 
+#   dplyr::summarise(non_hh_before_never_contact_n=n())
+# 
+# 
+# # merge with d_all_wide
+# d_all_wide <- merge(d_all_wide, before_once_week, by=c("new_id", "wave"), all.x=T)
+# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+# d_all_wide <- merge(d_all_wide, before_once_month, by=c("new_id", "wave"), all.x=T)
+# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+# d_all_wide <- merge(d_all_wide, before_2_weeks, by=c("new_id", "wave"), all.x=T)
+# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+# d_all_wide <- merge(d_all_wide, before_every_day, by=c("new_id", "wave"), all.x=T)
+# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+# d_all_wide <- merge(d_all_wide, before_less_month, by=c("new_id", "wave"), all.x=T)
+# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+# d_all_wide <- merge(d_all_wide, before_never, by=c("new_id", "wave"), all.x=T)
+# if(nrow(d_all_wide) != nrow(d_self_all)) { message("More rows than expected!") }
+# 
+# # any NA in _contact_n means zero contacts in that setting
+# for(current_variable in names(d_all_wide)[grep("contact_n", names(d_all_wide))]) {
+#   d_all_wide[is.na(d_all_wide[, current_variable]), current_variable] <- 0
+# }
+# 
+# rm(before_once_week, before_once_month, before_2_weeks, before_every_day, before_less_month, before_never)
+# 
+# table1::table1(~non_hh_before_onceweek_contact_n + non_hh_before_oncemonth_contact_n + non_hh_before_2weeks_contact_n + non_hh_before_everyday_contact_n + non_hh_before_lessmonth_contact_n + non_hh_before_never_contact_n | wave, data=d_all_wide)
 
 
 
@@ -1509,15 +1691,17 @@ table1::table1(~non_hh_before_onceweek_contact_n + non_hh_before_oncemonth_conta
 ```
 
 
-##create age group
+##create weekday
+The contact is recorded one day before report day. so, the weekday of contact is counted from Tuesday to Saturday next week, and weekend is Sunday and Monday next week.
 
-```{r create age groups, weekday, etc}
+```{r }
 d_all_wide$date <- ymd(paste0(d_all_wide$date_YYYY_0, "/", d_all_wide$date_MM_0, "/", d_all_wide$date_DD_0))
 d_all_wide$weekday <- lubridate::wday(d_all_wide$date, week_start = 7) # week starts on Sunday
 d_all_wide$weekday <- factor(d_all_wide$weekday, labels = c("Sun", "Mon", "Tue", "Wed","Thu", "Fri", "Sat"))
 d_all_wide$weekday <- factor(d_all_wide$weekday, levels = c("Mon", "Tue", "Wed","Thu", "Fri", "Sat", "Sun"))
-table(d_all_wide$date, d_all_wide$weekday)
 
+ # table(d_all_wide$date, d_all_wide$weekday)
+ 
 #weekday for which contacts recorded, i.e. weekday - 1
  d_all_wide$weekday_2[d_all_wide$weekday=="Mon"] <- "Sun"
  d_all_wide$weekday_2[d_all_wide$weekday=="Tue"] <- "Mon"
@@ -1529,7 +1713,52 @@ table(d_all_wide$date, d_all_wide$weekday)
  d_all_wide$weekday_2 <- factor(d_all_wide$weekday_2, levels=c("Mon","Tue","Wed","Thu", "Fri", "Sat", "Sun"))
  d_all_wide$weekend_weekday[d_all_wide$weekday_2=="Mon" | d_all_wide$weekday_2=="Tue" |  d_all_wide$weekday_2=="Wed" |  d_all_wide$weekday_2=="Thu" | d_all_wide$weekday_2=="Fri"] <- "weekday"
  d_all_wide$weekend_weekday[d_all_wide$weekday_2=="Sat" | d_all_wide$weekday_2=="Sun"] <- "weekend"
+ 
+ table(d_all_wide$date, d_all_wide$weekend_weekday)
 
+ 
+```
+
+## Age group
+```{r results="asis"}
+d_all_wide$age_group[which(d_all_wide$age_group == "Under 1")] <- "<1"
+# table(d_all_wide$age_group, d_all_wide$wave_0)
+table1::table1(~age_group| wave, data=d_all_wide)
+
+```
+
+
+## Sex
+
+```{r results="asis"}
+
+# age groups
+# from wave 14 onwards a category exists 85 years or older => put into 85+
+d_all_wide$age_group[d_all_wide$age_group=="85 years or older"] <- "85+"
+
+#groups <- sort(unique(d_all_wide$age_group))
+#groups <- setdiff(groups,c("Don’t know","Prefer not to answer","<1"))
+d_all_wide$age_group_2[d_all_wide$age_group=="Under 1" | d_all_wide$age_group=="1-4" | d_all_wide$age_group=="5-9"| d_all_wide$age_group=="10-14" | d_all_wide$age_group=="15-19"] <- "0-19"
+d_all_wide$age_group_2[d_all_wide$age_group=="20-24" | d_all_wide$age_group=="25-34" ] <- "20-34"
+d_all_wide$age_group_2[d_all_wide$age_group=="35-44" | d_all_wide$age_group=="45-54"] <- "35-54"
+d_all_wide$age_group_2[ d_all_wide$age_group=="55-64" ] <- "55-64"
+d_all_wide$age_group_2[ d_all_wide$age_group=="65-69"] <- "65-69"
+d_all_wide$age_group_2[ d_all_wide$age_group=="70-74" | d_all_wide$age_group=="75-79" | d_all_wide$age_group=="80-84" | d_all_wide$age_group=="85+"] <- "70+"
+
+#sex2
+# only keep Female and  Male , the rest ( i.e : "In another way", "Prefer not to answer") become NA
+d_all_wide$sex2 [d_all_wide$sex=="Female"] <- "Female"
+d_all_wide$sex2[d_all_wide$sex=="Male"] <- "Male"
+
+
+table1::table1(~ sex2 | as.factor(wave), data=d_all_wide)
+
+
+```
+
+## hh size 
+
+```{r results="asis"}
 
 #####CAVE, CAVE, CAVE - there is still an issue with wave 14. hh_p_incl_0 ranges from 0 to 11 instead of 1 to 12. Email to Sara send.
 # household size
@@ -1553,31 +1782,32 @@ d_all_wide$hh_p_incl_0_3[d_all_wide$hh_p_incl_0>5] <- "6+"
 d_all_wide$hh_p_incl_0_3 <- factor(d_all_wide$hh_p_incl_0_3, levels=c("6+","3-5","2","1"))
 
 
-# age groups
-# from wave 14 onwards a category exists 85 years or older => put into 85+
-d_all_wide$age_group[d_all_wide$age_group=="85 years or older"] <- "85+"
+```
 
-#groups <- sort(unique(d_all_wide$age_group))
-#groups <- setdiff(groups,c("Don’t know","Prefer not to answer","<1"))
-d_all_wide$age_group_2[d_all_wide$age_group=="Under 1" | d_all_wide$age_group=="1-4" | d_all_wide$age_group=="5-9"| d_all_wide$age_group=="10-14" | d_all_wide$age_group=="15-19"] <- "0-19"
-d_all_wide$age_group_2[d_all_wide$age_group=="20-24" | d_all_wide$age_group=="25-34" ] <- "20-34"
-d_all_wide$age_group_2[d_all_wide$age_group=="35-44" | d_all_wide$age_group=="45-54"] <- "35-54"
-d_all_wide$age_group_2[ d_all_wide$age_group=="55-64" ] <- "55-64"
-d_all_wide$age_group_2[ d_all_wide$age_group=="65-69"] <- "65-69"
-d_all_wide$age_group_2[ d_all_wide$age_group=="70-74" | d_all_wide$age_group=="75-79" | d_all_wide$age_group=="80-84" | d_all_wide$age_group=="85+"] <- "70+"
 
-#sex2#the same??
-d_all_wide$sex2 [d_all_wide$sex=="Female"] <- "Female"
-d_all_wide$sex2[d_all_wide$sex=="Male"] <- "Male"
+## Age, sex, and hh size
+```{r results="asis"}
+# label for the table
+table1::label(d_all_wide$sex2)<-"Sex"
+#label(df$weekend_weekday)<-"Weekday/Weekend"
+table1::label(d_all_wide$age_group_2)<-"Age in years"
+table1::label(d_all_wide$hh_p_incl_0_2)<-"Household size"
+
+table1(~ age_group_2 + sex2 +hh_p_incl_0_2|wave, data=d_all_wide)
 
 ```
 
 ## add Q75/76
+Q.75 How many people have you had contact with whom you did not specify individually? Please, provide an estimated value as precisely as possible, including age and environment. For the purpose of this question, we are only interested in people with whom there was direct contact and with whom you have exchanged at least a few words OR with whom you have had physical contact (e.g. shaking hands, hugging, contact sports). Please, indicate the number of contacts for each age group and each environment.
+
+Q.76 Roughly how many people did you have phyiscal contact (body contact) with that you did not specify individually? Please, provide an estimated value as precisely as possible, including age and environment. For the purpose of this question, we are only interested in people who have had direct contact AND with whom you have had physical contact (e.g. shaking hands, hugging, contact sports). Please, indicate the number of contacts for each age group and each environment.
+
+????
+The group contact info mainly retrieved from Q75.However, if Q76 > Q75 -> use Q76 
+
 
 ```{r Add Q75 / Q76 contacts AND truncate Q contacts at 50}
 # Please check each category individually. I.e. compare Q75_u18_work with Q76_u18_work and replace if necessary and that just for each category. That's how I did it so far and Victoria took over from me.
-
-
 
 
 # Please indicate the number of contacts for each age group and setting.
@@ -1596,28 +1826,23 @@ d_all_wide$Q75_1864_work[v] <- d_all_wide$Q76_1864_work[v]
 v <- which(d_all_wide$Q76_o64_work > d_all_wide$Q75_o64_work)
 d_all_wide$Q75_o64_work[v] <- d_all_wide$Q76_o64_work[v]
 
+#work contact
+
 d_all_wide$Q75_work_sum <- rowSums(d_all_wide[, c("Q75_u18_work",
                                                   "Q75_1864_work",
                                                   "Q75_o64_work")],
                                    na.rm = TRUE)
-d_all_wide$dummy_Q75_work_youngage<-0
-d_all_wide$dummy_Q75_work_youngage[d_all_wide$age_group=="Under 1" | 
-                                     d_all_wide$age_group=="1-4" |
-                                     d_all_wide$age_group=="5-9" |
-                                     d_all_wide$age_group=="10-14"] <- 
-  d_all_wide$Q75_work_sum[d_all_wide$age_group=="Under 1" | 
-                                     d_all_wide$age_group=="1-4" |
-                                     d_all_wide$age_group=="5-9" |
-                                     d_all_wide$age_group=="10-14"]
 
+
+## < 15 yrs old -> no work contact
 d_all_wide$Q75_work_sum[d_all_wide$age_group=="Under 1" | 
-                                     d_all_wide$age_group=="1-4" |
-                                     d_all_wide$age_group=="5-9" |
-                                     d_all_wide$age_group=="10-14"] <- 0
+                          d_all_wide$age_group=="1-4" |
+                          d_all_wide$age_group=="5-9" |
+                          d_all_wide$age_group=="10-14"] <- 0
 
 
-##### truncate at "truncate" before adding to work contacts
-d_all_wide$Q75_work_sum[d_all_wide$Q75_work_sum>truncate] <- truncate
+##truncate at "truncate" before adding to work contacts
+d_all_wide$Q75_work_sum[d_all_wide$Q75_work_sum > truncate] <- truncate
 
 ## add the work Q contacts to the overall work contacts
 d_all_wide$work_contact_n_Q75 <- d_all_wide$work_contact_n + d_all_wide$Q75_work_sum
@@ -1639,10 +1864,10 @@ d_all_wide$Q75_school_sum <- rowSums(d_all_wide[, c("Q75_u18_school",
                                                     "Q75_o64_school")],
                                      na.rm = TRUE)
 
-##### truncate at "truncate" before adding to school contacts
+## truncate at "truncate" before adding to school contacts
 d_all_wide$Q75_school_sum[d_all_wide$Q75_school_sum>truncate] <- truncate
 
-# add the Q school contacts to the other school contacts
+## add the Q school contacts to the other school contacts
 d_all_wide$school_contact_n_Q75 <- d_all_wide$school_contact_n + d_all_wide$Q75_school_sum
 
 
@@ -1664,11 +1889,23 @@ d_all_wide$Q75_else_sum <- rowSums(d_all_wide[, c("Q75_u18_else",
                                                   "Q75_o64_else")],
                                    na.rm = TRUE)
 
-#add the Q75 work contacts from the below 15 year olds
+##add the Q75 work contacts from the below 15 year olds
+
+d_all_wide$dummy_Q75_work_youngage<- 0
+
+d_all_wide$dummy_Q75_work_youngage[d_all_wide$age_group=="Under 1" |
+                                     d_all_wide$age_group=="1-4" |
+                                     d_all_wide$age_group=="5-9" |
+                                     d_all_wide$age_group=="10-14"] <-
+d_all_wide$Q75_work_sum[d_all_wide$age_group=="Under 1" |
+                            d_all_wide$age_group=="1-4" |
+                            d_all_wide$age_group=="5-9" |
+                            d_all_wide$age_group=="10-14"]
+
 d_all_wide$Q75_else_sum <-d_all_wide$Q75_else_sum + d_all_wide$dummy_Q75_work_youngage
 
 
-##### truncate at "truncate" before adding to not specified contacts
+## truncate at "truncate" before adding to not specified contacts
 d_all_wide$Q75_else_sum[d_all_wide$Q75_else_sum>truncate] <- truncate
 
 #add the Q "else" contacts to the not specified contacts
@@ -1677,10 +1914,9 @@ d_all_wide$not_specified_contact_n_Q75 <- d_all_wide$not_specified_contact_n + d
 
 ```
 
-## add Q75/76 to non-hh
+##add Q75/76 to non-hh
 
 ```{r Add Q75 / Q76 contacts to non-hh contacts}
-
 
 # also add to all non_hh_
 d_all_wide$non_hh_contact_n_Q75 <- d_all_wide$non_hh_contact_n + 
@@ -1697,7 +1933,7 @@ d_all_wide$all_contact_n_Q75 <- d_all_wide$all_contact_n +
 
 ```
 
-## add Q75/76 to non-hh truncated overall at 50 (lshtm)
+##add Q75/76 to non-hh truncated overall at 50 (lshtm)
 
 ```{r Add Q75 / Q76 contacts to non-hh contacts truncated overall at 50, i.e. like lshtm does it not based on categories}
 
@@ -1707,12 +1943,13 @@ d_all_wide$Q75_combined[d_all_wide$Q75_combined>truncate_lshtm] <- truncate_lsht
 
 
 # also add to all non_hh_
-d_all_wide$lshtm_non_hh_contact_n_Q75 <- d_all_wide$non_hh_contact_n + 
+d_all_wide$non_hh_contact_n_Q75_lshtm_ <- d_all_wide$non_hh_contact_n + 
   d_all_wide$Q75_combined
 
 # also add to all_
-d_all_wide$lshtm_all_contact_n_Q75 <- d_all_wide$all_contact_n + 
+d_all_wide$all_contact_n_Q75_lshtm <- d_all_wide$all_contact_n + 
   d_all_wide$Q75_combined
+
 
 ```
 
@@ -1727,11 +1964,6 @@ summary(d_all_wide$age_0)
 # age_0 is never below 18 because it is only known for the respondent
 # if age is needed, then use age_group!
 
-# d_all_wide$age_group <- droplevels(d_all_wide$age_group)
-table(d_all_wide$age_group, d_all_wide$wave)
-d_all_wide$age_group[which(d_all_wide$age_group == "Under 1")] <- "<1"
-# levels(d_all_wide$age_group)[1] <- "<1"
-
 d_all_wide <- subset(d_all_wide, !is.na(new_id))
 
 # sum of place_ contacts (incl. oth_contact_n) must not be greater than non_hh_contact_n
@@ -1742,465 +1974,17 @@ table(d_all_wide$non_hh_contact_n - d_all_wide$sum_place_contact_n,# no negative
       d_all_wide$multiple_contact_n,
       useNA = "ifany")
 
-```
-
-
-##convert all NA to zero for later calculations
-Be cautious!
-
-```{r convert all NA to zero for later calculations}
-# 
-# for(j in 19:ncol(d_all_wide)) { #für bestimmte Variablen#for certain variables
-#   d_all_wide[[j]][is.na(d_all_wide[[j]])] = 0
-# }
-
-```
-
-
-##Q79_group contacts
-###work
-
-```{r Berechnung Gruppenkontakte}
-###Q79 
-###Work Contacts
-d_all_wide$Q79a_work_sum <- rowSums(d_all_wide[, c("Q79a_age_met_work_u18",
-                                                   "Q79a_age_met_work_1864",
-                                                   "Q79a_age_met_work_o64")],
-                                    na.rm = TRUE)
-d_all_wide$Q79a_work_sum[d_all_wide$age_group=="Under 1" | 
-                           d_all_wide$age_group=="1-4" |
-                           d_all_wide$age_group=="5-9" |
-                           d_all_wide$age_group=="10-14"] <- 0
-
-## add the work Q contacts to the overall work contacts
-d_all_wide$work_contact_n_Q79a <- d_all_wide$work_contact_n + d_all_wide$Q79a_work_sum
-
-###Q80 ###School Contacts
-d_all_wide$Q80a_school_sum <- rowSums(d_all_wide[, c("Q80a_age_met_uni_u18",
-                                                     "Q80a_age_met_uni_1864",
-                                                     "Q80a_age_met_uni_o64")],
-                                      na.rm = TRUE)
-# add the Q school contacts to the other school contacts
-d_all_wide$school_contact_n_Q80a <- d_all_wide$school_contact_n + d_all_wide$Q80a_school_sum
-
-###Q81 ###Else Contacts
-d_all_wide$Q81a_else_sum <- rowSums(d_all_wide[, c("Q81a_age_met_else_u18",
-                                                   "Q81a_age_met_else_1864",
-                                                   "Q81a_age_met_else_o64")],
-                                    na.rm = TRUE)
-
-```
-
-
-
-###all non-hh-contacts
-Berechnung alle non-hh-contacts
-
-```{r non-hh-contacts}
-# also add to all non_hh_
-d_all_wide$non_hh_contact_n_Q79 <- d_all_wide$non_hh_contact_n + 
-  d_all_wide$Q79a_work_sum + 
-  d_all_wide$Q80a_school_sum + 
-  d_all_wide$Q81a_else_sum
-
-```
-
-### all-contacts
-Berechnung all-contacts
-```{r all-contact}
-# also add to all_
-d_all_wide$all_contact_n_Q79 <- d_all_wide$all_contact_n + 
-  d_all_wide$Q79a_work_sum + 
-  d_all_wide$Q80a_school_sum + 
-  d_all_wide$Q81a_else_sum
-```
-
-#contact dataset with keys parameter
-```{r}
-###1 non_hh contact with subgroup
-non_hh_Q75 <- d_all_wide %>% select("wave_0",contains("contact_n_Q75"))%>%select(-c(contains("lshtm")))%>%select(-c(contains("all")))
-
-non_hh_Q75 <- melt(non_hh_Q75,id.vars="wave_0")
-
-ggplot(non_hh_Q75, aes( x=wave_0, y=value, colour=variable, fill=variable ))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95))+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean)+
-  scale_fill_manual(values = c("#fee8c8","#e34a33","#2b8cbe","#ece7f2"))+
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-  # scale_x_discrete("",labels = c(WAVES))+ #
-  labs(y="Mean_contacts_Q75",x="wave")
-###2 hh contact with subgroup
-hh <- d_all_wide %>% select("wave_0",contains("hh_contact_"))%>%select(-c(contains("non")))
-
-hh <- melt(hh,id.vars="wave_0")
-
-ggplot(hh, aes( x=wave_0, y=value, colour=variable, fill=variable ))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95))+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean)+
-  scale_fill_manual(values = c("#fee8c8","#e34a33","#2b8cbe"))+
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-  # scale_x_discrete("",labels = c(WAVES))+ #
-  labs(y="Mean_contacts_Q75",x="wave")
-
-
-##3 all contact with diffeerent approach
-contact_all <- d_all_wide %>% select("wave_0",contains("all_contact_"))%>%select(-c(contains("inside")))%>%select(-c(contains("outside")))
-contact_all <- melt(contact_all,id.vars="wave_0")
-
-ggplot(contact_all, aes( x=wave_0, y=value, colour=variable, fill=variable ))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95))+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean)+
-  # scale_color_manual(values = c("#fee8c8","#e34a33","#2b8cbe","#a6bddb"))+
-  scale_fill_manual(values = c("#fee8c8","#e34a33","#2b8cbe","#a6bddb"))+
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-  # scale_x_discrete("",labels = c(WAVES))+ #
-  labs(y="Mean_contacts_Q75",x="wave")
-
-##4 all contact vs. vaccination status
-contact_all_vac <- d_all_wide %>% select("wave_0","own_vacc_0",contains("all_contact_n_Q75"))%>%select(-c(contains("lshtm")))
-# contact_all_vac <- melt(contact_vac,id.vars="wave_0")
-
-ggplot(contact_all_vac, aes( x=wave_0, y=all_contact_n_Q75, colour=own_vacc_0, fill=own_vacc_0 ))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95))+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean)+
-  # scale_color_manual(values = c("#fee8c8","#e34a33","#2b8cbe","#a6bddb"))+
-  scale_fill_manual(values = c("#fee8c8","#e34a33","#2b8cbe","#a6bddb"))+
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-  # scale_x_discrete("",labels = c(WAVES))+ #
-  labs(y="Mean_contacts_Q75",x="wave")
-
-```
-
-#plot contacts
-This show different trend with Veronika's plot
-But using 2 different method showed similar results.So the difference may be durring compiling data
-```{r}
-
-#method1:
-# plot mean contact
-ggplot(d_all_wide, aes(x=wave_0, y=all_contact_n_Q75))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95), fill="lightblue")+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean, color="red")+
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-  # scale_x_discrete("",labels = c(WAVES))+ #
-  labs(y="Mean_contacts_Q75",x="wave")
-
-# plot mean contact_hh
-ggplot(d_all_wide, aes(x=wave_0, y=hh_contact_n))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95), fill="lightblue")+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean, color="red")+
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-  labs(y="Mean_contacts_hh",x="Wave")
-# plot mean contact_non_hh
-ggplot(d_all_wide, aes(x=wave_0, y=non_hh_contact_n_Q75))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95), fill="lightblue")+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean, color="red")+
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-  labs(y="Mean_contacts_non_hh_Q75", x="Wave")
-
-#https://stackoverflow.com/questions/53180486/plotting-average-of-multiple-groups-across-time-in-ggplot2 (plot different group)
-
-# sample_sum <- d_all_wide %>%
-#   group_by(as.factor(wave)) %>%
-#   summarize(mean = mean(all_contact_n),
-#             sd   = sd(all_contact_n),
-#             mean_p2sd = mean + 2 * sd,
-#             mean_m2sd = mean - 2 * sd) %>%
-#   ungroup()
-# 
-# p <- ggplot(sample_sum %>%
-#               gather(stat, all_contact_n, mean, mean_p2sd:mean_m2sd), 
-#             aes(x = wave, y = all_contact_n)) + 
-#   geom_line(aes(linetype = stat))
-# p
-
-# another aprroach show similar result
-
-# #method2
-# mean.contact = d_all_wide %>% 
-#   group_by(wave) %>% 
-#   summarise(N = n(),
-#             avg.contact = mean(all_contact_n),
-#             SE.low = avg.contact - (sd(all_contact_n)/sqrt(N)),
-#             SE.high =avg.contact + (sd(all_contact_n)/sqrt(N)))
-# 
-# 
-# plot(avg.contact ~ wave, data = mean.contact,ylim=c(0,5), type = 'n')
-# 
-# #note I have defined c(x1, x2) and c(y1, y2)
-# polygon(c(mean.contact$wave, rev(mean.contact$wave)), 
-#         c(mean.contact$SE.low,rev(mean.contact$SE.high)), density = 200, col ='grey90')
-# 
-# points(avg.contact ~ wave, data = mean.contact, pch = 19, col = 'firebrick')
-
-# #method 3: ggplot ribbon
-# d_all_wide %<>% mutate(low = ?, high = ?) # add lower bounds, and an index
-# gplot(d_all_wide, aes(x = wave, y = all_contact_n)) + 
-#   geom_line(col="black") + 
-#   geom_point() + 
-#   geom_ribbon(aes(ymin = low, ymax = high), 
-#               alpha=0.1, 
-#               linetype="dashed",
-#               color="grey")
 
 
 ```
 
-# barchart
-```{r Long format for bar chart of settings}
-  # All
-keycol <- "contact_type"
-valuecol <- "contact_n"
-gathercols <- c(CONTACT_N, "not_specified_contact_n", "hh_contact_n",
-                sub("_contact_n", 
-                    "_contact_n_inside", 
-                    c(CONTACT_N, "not_specified_contact_n", "hh_contact_n")),
-                sub("_contact_n", 
-                    "_contact_n_outside", 
-                    c(CONTACT_N, "not_specified_contact_n", "hh_contact_n")))
-
-
-
-d_all_long <- gather_(d_all_wide, keycol, valuecol, gathercols, factor_key=TRUE)
-levels(d_all_long$contact_type) <- c(setdiff(LABEL_PLACES, "Multiple locations"), "Household",
-                                     paste0(c(setdiff(LABEL_PLACES, "Multiple locations"),
-                                              "Household"),
-                                            " (inside)"),
-                                     paste0(c(setdiff(LABEL_PLACES, "Multiple locations"),
-                                              "Household"),
-                                            " (outside)"))
-table(d_all_long$contact_type)
-
-```
-
-
-```{r, results='asis'}
-#library(ComplexHeatmap)
-
-## Define ggtheme
-ggthemr('grape')
-
-
-######DONT FORGET TO CHANGE IF MORE WAVES ARE ADDED!!!!
-
-## Prepare function to get all contacts
-get_contacts <- function(data,waves=c(1:current_wave),min.waves=length(waves),include.group = F) {
-  
-  x <- data
-  waves <- levels(x$wave)[waves]
-  IDS <- x %>%
-    filter(wave %in% waves) %>%
-    mutate(wave = droplevels(wave))%>%
-    group_by(new_id) %>%
-    dplyr::summarise(n_waves = n()) %>%
-    filter(n_waves >= min.waves) %>% dplyr::select(new_id) %>% pull
-  
-  dat <- x %>%
-    filter(wave %in% waves) %>%
-    mutate(wave = droplevels(wave)) %>%
-    filter(new_id %in% IDS)
-  
-  return(dat)
-}
-
-
-
-# Prepare function to get random rows. Used to highlight random slopes in spaghetti plot
-random_subset <- function(x) {
-  id <- sample(1:length(x), length(x)/10, replace=T)
-  x[id] <- 1
-  x[-id] <- 0
-  x <- as.numeric(x)
-  return(x)
-}
-
-# Function to compute change relative to previous wave
-relative.change <- function(x) { c(0,diff(x[1:length(x)],differences=1))}
-
-
-# Function to prepare spaghetti plots
-spaghetti.plot <- function(data,waves=levels(data$wave),relative=F,log=F,alpha=.1,title="only participants with observations in at least two time-points") {
-
-  if(relative == T) {data <- data %>% group_by(new_id) %>% mutate(contacts = relative.change(contacts))}
-  
-  p <- data %>%
-        filter(wave %in% waves) %>%
-        mutate(random = as.factor(random_subset(contacts))) %>%
-        ggplot(aes(x=wave,y=contacts)) +
-        geom_line(aes(group=new_id),alpha=alpha) + 
-        geom_point(alpha=alpha) +
-        theme(legend.position = "none",
-              axis.text.x = element_text(angle = 90)) +
-        ggtitle(paste0(title))
-  
-  if(log==T) {p <- p +   scale_y_log10() + ylab("contacts[logscale]") }
-  
-  print(p)
-
-}
-
-# Function to prepare boxplots
-my.boxplot <- function(x,waves=levels(x$wave),relative=F,log=F,title="only participants with observations in at least two time-points") {
-
-  if(relative == T) {x <- x %>% group_by(new_id) %>% mutate(contacts = relative.change(contacts))}
-  
-  p <- x %>%
-        filter(wave %in% waves) %>%
-        ggplot(aes(x=wave,y=contacts)) +
-        geom_boxplot() + 
-        stat_summary(fun=mean, geom="point", shape=20,col="black",size=1, fill="red",aes(shape="mean")) +
-        stat_summary(fun=mean,group=1, geom="line",col="black",size=1,linetype="dashed") +
-        theme(legend.position = "none",
-              axis.text.x = element_text(angle = 90)) +
-        ggtitle(paste0(title))
-  
-  if(log==T) {p <- p +   scale_y_log10() + ylab("contacts[logscale]") }
-  
-  print(p)
-
-}
-
-##########################
-#### Make UpSet plots ####
-##########################
-
-
-plot.upset <- function(x) {
-  
-#x <- x %>% filter(contacts>0)
-
-m <- table(x$new_id,x$wave) %>%
-  make_comb_mat()
-
-ht <- UpSet(m,
-      comb_order = order(comb_size(m),decreasing = T),
-      set_order = order(set_size(m)),
-      row_names_side = "right",
-      right_annotation = NULL,
-      comb_col = "#3B3B3B",
-      left_annotation = rowAnnotation(
-        "Set size" = anno_barplot(set_size(m), 
-                                  axis_param = list(direction = "reverse"),
-                                  border = FALSE, 
-                                  #gp = gpar(fill = mypal,col="white"), 
-                                  width = unit(2, "cm")
-        )))
-
-print(ht)
-
-}
-
-
-###############################
-#### Mean change over time ####
-###############################
-library(boot)
-
-#sample_mean <- function(x,i) {
-#  return(mean(x[i]))
-#}
-
-sample_mean <- function(x,i,j) {
-  d <- x[i]
-  w <- j[i]
-  return(weighted.mean(d,w))
-}
-
-boot_mean <- function(x,w) {
-  set.seed(1234567)
-  bo <- boot(x,sample_mean,R=1000,j=w)
-  ci <- boot.ci(bo, conf=0.95,type="perc")
-  out <- data.frame("mean" = bo$t0,
-              "lower" = ci$perc[4],
-              "upper" = ci$perc[5])
-  return(out)
-}
-
-plot.mean <- function(x,waves=levels(x$wave),weighted=F,R=1000,title="Bootstraped mean value with 95% percentile CI - R = 1000 ") {
-
-if(weighted==T) {
-plot_df <- x %>%
-  filter(wave %in% waves) %>%
-  dplyr::group_by(wave) %>%
-  do(boot_mean(.$contacts,w=.$weight)) %>%
-  ungroup 
-} else {
-plot_df <- x %>%
-  filter(wave %in% waves) %>%
-  dplyr::group_by(wave) %>%
-  do(boot_mean(.$contacts,w=rep(1,nrow(x)))) %>%
-  ungroup  
-  
-}
-}
-
-n_overall.table <- function(x) {
-  table(x) %>% as_tibble() %>% rename("Number of waves" = x, "Number of participants" = n) %>% t() %>% kable %>% kable_styling()
-}
-
-n.table <- function(x) {
-  table(x) %>% as_tibble() %>% rename(Wave = x, Observations = n) %>% t() %>% kable %>% kable_styling()
-}
-
-```
-
-# Number of participants per wave
-## all participants  included regardless of number of waves contributed
-```{r,results="asis"}
-min_number_waves=1
-df <- get_contacts(d_all_wide,min.waves=min_number_waves)
-
-df_dummy <- df %>% group_by(new_id) %>% dplyr::summarise(wave_n=n()) ## add dplyr::, no longer error
-df_dummy$num_wave_included<-min_number_waves
-df_dummy$wave_n_factor <- as.factor(df_dummy$wave_n)
-df_dummy$wave_n_cat <- as.factor(ifelse(df_dummy$wave_n < 2, '1',
-                     ifelse(df_dummy$wave_n < 5, '2-4', 
-                     ifelse(df_dummy$wave_n < 10, '5-9', 
-                     ifelse(df_dummy$wave_n < 15, '10-14', 
-                     ifelse(df_dummy$wave_n < 20, '15-19', 
-                     ifelse(df_dummy$wave_n < 25, '20-24', 
-                            '>=25')))))))
-df_dummy$wave_n_cat <- factor(df_dummy$wave_n_cat, levels=c("1", "2-4", "5-9", "10-14", "15-19", "20-24",">=25"))
-
-table1::table1(~num_wave_included + wave_n + wave_n_factor + wave_n_cat, data=df_dummy)
-#n_overall.table(df_dummy$wave_n)
-table1::table1(~all_contact_n_Q75 + all_contact_n | wave, data=df)
-
-#mean contact
-table1::table1(~all_contact_n_Q75 + all_contact_n | wave, data=df)
-
-```
-
-
-
-From now on all participants who participated in at least `r min_number_waves` wave(s) are included.
-
-# UNWEIGHTED
-##descriptive_table
-###number_of_participants
+## Number of participants per wave
+All participants  included regardless of number of waves contributed
 
 ```{r descriptive_table}
 
-#label for table ## add package table1, no longer error
- table1::label(df$sex2)<-"Sex"
-#label(df$weekend_weekday)<-"Weekday/Weekend"
- table1::label(df$age_group_2)<-"Age in years"
- table1::label(df$hh_p_incl_0_2)<-"Household size"
-
+min_number_waves=1
+df <- get_contacts(d_all_wide,min.waves=min_number_waves)
 
 my.render.cat <- function(x) {
   c("", sapply(stats.default(x), function(y) with(y,
@@ -2216,6 +2000,7 @@ df_unweighted$wave_num <- as.numeric(df_unweighted$wave)
 
 number_of_participants <- ggplot(df_unweighted, aes(x=wave_num))+
       geom_histogram(binwidth=1, fill="grey", colour="black")+
+  ggtitle(" Number of participants in each wave in NRW")+
 theme(panel.background = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),  axis.line = element_line(colour = "black"), plot.title = element_text(face="bold", size=16, colour = "black"), axis.title = element_text(size=16, face="bold", colour = "black"), axis.text.x = element_text(size = 15, colour = "black", angle = 90, vjust=0.5),  axis.text.y = element_text(size = 15, colour = "black")) + 
   scale_x_continuous(breaks = seq(1, current_wave, 2))
 number_of_participants
@@ -2230,10 +2015,40 @@ ggsave(participants, width=10, height=7)
 ```
 
 
-###Age and sex distribution
+## Repeated participants
 
+```{r,results="asis"}
+
+df_dummy <- df %>% group_by(new_id) %>% dplyr::summarise(wave_n=n()) ## add dplyr::, no longer error
+df_dummy$num_wave_included<-min_number_waves
+df_dummy$wave_n_factor <- as.factor(df_dummy$wave_n)
+df_dummy$wave_n_cat <- as.factor(ifelse(df_dummy$wave_n < 2, '1',
+                     ifelse(df_dummy$wave_n < 5, '2-4', 
+                     ifelse(df_dummy$wave_n < 10, '5-9', 
+                     ifelse(df_dummy$wave_n < 15, '10-14', 
+                     ifelse(df_dummy$wave_n < 20, '15-19', 
+                     ifelse(df_dummy$wave_n < 25, '20-24', 
+                            '>=25')))))))
+df_dummy$wave_n_cat <- factor(df_dummy$wave_n_cat, levels=c("1", "2-4", "5-9", "10-14", "15-19", "20-24",">=25"))
+
+# lable table
+# table1::lable(df_dummy$num_wave_included) <- "wanted name"
+table1::table1(~num_wave_included + wave_n + wave_n_factor + wave_n_cat, data=df_dummy)
+
+```
+
+## Mean all contacts
+```{r ,results="asis"}
+
+#mean contact
+table1::table1(~all_contact_n_Q75 + all_contact_n | wave, data=df)
+
+```
+
+# Distribution figures
+
+## Age group
 ```{r}
-table1(~age_group_2 + sex2 + hh_p_incl_0|wave, data=df_unweighted)
 
 #Age Group
 df_unweighted_histo <- df_unweighted %>% select(new_id, wave, age_group_2, wave_num)
@@ -2244,8 +2059,7 @@ age_per_wave <- ggplot(df_unweighted_histo,
     geom_bar(position = "fill", stat = "identity") +
     scale_y_continuous(labels = scales::percent_format(),expand = c(0,0)) +
     scale_x_continuous(breaks = seq(1, current_wave, 1))+
-    xlab("Wave") +
-    ylab("Percentage") +
+    labs(fill=" Age in years",x= "Wave",y = "Percentage") + # rename legend title
     theme_bw() +
     theme(axis.text.x = element_text(colour = "black", size = 15, 
                                      angle = 90, hjust = 0.5, vjust = 0,5),
@@ -2268,6 +2082,10 @@ age_groups_part <- paste0(path_figures, "/age_groups_part", ".png")
 ggsave(age_groups_part, width=10, height=7)
 
 
+```
+
+## Sex
+```{r}
 #Sex
 df_unweighted_histo <- df_unweighted %>% select(new_id, wave, sex2, wave_num)
 df_unweighted_histo <- df_unweighted_histo %>% group_by(wave_num, sex2) %>% dplyr::summarise(sex2_n=n())
@@ -2277,8 +2095,7 @@ sex_per_wave <- ggplot(df_unweighted_histo,
     geom_bar(position = "fill", stat = "identity") +
     scale_y_continuous(labels = scales::percent_format(),expand = c(0,0)) +
     scale_x_continuous(breaks = seq(1, current_wave, 1))+
-    xlab("Wave") +
-    ylab("Percentage") +
+  labs(fill=" Gender",x= "Wave",y = "Percentage") + # rename legend title
     theme_bw() +
     theme(axis.text.x = element_text(colour = "black", size = 15, 
                                      angle = 90, hjust = 0.5, vjust = 0,5),
@@ -2301,6 +2118,12 @@ sex_part <- paste0(path_figures, "/sex_part", ".png")
 ggsave(sex_part, width=10, height=7)
 
 
+
+```
+
+## hh size
+```{r}
+
 #HH Size
 df_unweighted_histo <- df_unweighted %>% select(new_id, wave, hh_p_incl_0_3, wave_num)
 df_unweighted_histo <- df_unweighted_histo %>% group_by(wave_num, hh_p_incl_0_3) %>% dplyr::summarise(hh_p_incl_0_3_n=n())
@@ -2310,8 +2133,7 @@ hh_per_wave <- ggplot(df_unweighted_histo,
     geom_bar(position = "fill", stat = "identity") +
     scale_y_continuous(labels = scales::percent_format(),expand = c(0,0)) +
     scale_x_continuous(breaks = seq(1, current_wave, 1))+
-    xlab("Wave") +
-    ylab("Percentage") +
+   labs(fill=" Household size",x= "Wave",y = "Percentage") + # rename legend title
     theme_bw() +
     theme(axis.text.x = element_text(colour = "black", size = 15, 
                                      angle = 90, hjust = 0.5, vjust = 0,5),
@@ -2332,252 +2154,11 @@ hh_per_wave <- ggplot(df_unweighted_histo,
 hh_per_wave
 hh_part <- paste0(path_figures, "/hh_part", ".png")
 ggsave(hh_part, width=10, height=7)
-
-```
-
-## All contacts without group contacts
-
-```{r,results="asis"}
-#All contacts WItHOUT Q contacts!
-df$contacts<-df$all_contact_n
-
-n.table(df$wave)
-
-plot_df<-plot.mean(df)
-
 ```
 
 
-## Other settings
+## Mask wearing
 
-- work settings are based on contacts that reported employment (full-time,part-time,self employment)
-- school settings are based on contacts that reported to be pupils (nursery or pre-school,school,higher education/university) and job = "pupil"
-
-```{r,cache=F,results='asis'}
-names <- df %>% dplyr::select(contains("contact_n")) %>% colnames()
-names <- setdiff(names,c("all_contact_n","all_contact_n_Q75","hh_contact_n_outside",
-                        "hh_contact_n_inside","hh_contact_n","non_hh_contact_n_outside",
-                        "non_hh_contact_n_inside","non_hh_contact_n","all_contact_n_inside","all_contact_n_outside"))
-
-work_setting <- df %>% dplyr::select(contains("contact_n")) %>% dplyr::select(contains("work")) %>% colnames()
-school_setting <- df %>% dplyr::select(contains("contact_n")) %>% dplyr::select(contains("school")) %>% colnames()
-
-working <- c("Employed full-time (34 hours or more)",
-                       "Employed part-time (less than 34 hours)",
-                       "Self employed")
-pupil <- c("Nursery or pre-school", "School", "Higher education, e.g. university")
-
-FILE <- paste0("C:/Users/", USER, "/sciebo/Contact-a-thon/COVIMOD/",
-               "annotation_Nicole.csv")
-ann <- read_csv((FILE)) %>% dplyr::select(name,label_variable)
-
-
-current_df <- df
-
-for(i in seq_along(names)) {
-
-  if(names[i] %in% ann$name) {
-    cat(paste0("### ", ann[ann$name==names[i],2],"\n\n"))
-  } else {
-    cat(paste0("### ",names[i],"\n\n"))
-  }
-  current_df <- df
-  current_df$contacts <- current_df[,names[[i]]]
-
-  if(names[[i]] %in% work_setting) {current_df <- current_df %>% filter(job %in% working)}
-  if(names[[i]] %in% school_setting) {current_df <- current_df %>% filter(school %in% pupil & job == "Student/Pupil")}
-
-  print(n.table(current_df$wave))
-  plot.mean(current_df)
-
-  cat("\n\n")
-
-}
-```
-
-# WEIGHTED
-
-```{r weighting_1}
-
-# Load Zensus data
-Zensus <- read_csv("C:/Users/jaeger/Desktop/vom server/COVID_Polymod/Data/Zensus pro Bundesland by age_cat_10 sex hh_size.csv")
-
-# Discard aggregated information
-Zensus <- subset(Zensus,
-                       age_cat_10 != "Insgesamt" & hh_p != "Insgesamt" & sex != "Insgesamt")
-
-# Discard NA information
-Zensus <- subset(Zensus, !is.na(group_size_population))
-
-# Adjust age categories
-Zensus$age_cat_10[which(Zensus$age_cat_10 == "Unter 10")] <- "00-09"
-Zensus$age_cat_10[which(Zensus$age_cat_10 == "80 and older")] <- "80+"
-Zensus$age_cat_10 <- gsub(" ", "", Zensus$age_cat_10)
-Zensus$age_cat_10 <- as.factor(Zensus$age_cat_10)
-levels(Zensus$age_cat_10)
-
-# Create the same age groups as given in Zensus data
-d_all_wide$age_group_zensus <- cut(d_all_wide$age_0,
-                                   breaks = c(-Inf, seq(10, 80, 10), Inf),
-                                   right = FALSE)
-
-# Rename the levels as in census data
-levels(d_all_wide$age_group_zensus) <- levels(Zensus$age_cat_10)
-
-# Convert factor to character string
-d_all_wide$age_group_zensus <- as.character(d_all_wide$age_group_zensus)
-
-# Create categories for people without exact age information (people < 18)
-d_all_wide$age_group_zensus[which(d_all_wide$age_group == "<1")] <- "00-09"
-d_all_wide$age_group_zensus[which(d_all_wide$age_group == "01-04")] <- "00-09"
-d_all_wide$age_group_zensus[which(d_all_wide$age_group == "1-4")] <- "00-09"  # Bei mir ist die Kategorie so benannt?
-d_all_wide$age_group_zensus[which(d_all_wide$age_group == "05-09")] <- "00-09"
-d_all_wide$age_group_zensus[which(d_all_wide$age_group == "5-9")] <- "00-09"  # Bei mir ist die Kategorie so benannt?
-d_all_wide$age_group_zensus[which(d_all_wide$age_group == "10-14")] <- "10-19"
-d_all_wide$age_group_zensus[which(d_all_wide$age_group == "15-19")] <- "10-19"
-d_all_wide$age_group_zensus[which(d_all_wide$age_group == "20-24")] <- "20-29" #??
-d_all_wide$age_group_zensus[which(d_all_wide$age_group == "65-69")] <- "60-69" #??
-d_all_wide$age_group_zensus[which(d_all_wide$age_group == "85 years or older")] <- "80+" #??
-
-table(d_all_wide$age_group_zensus, d_all_wide$age_group, useNA = "ifany")
-
-# Use only observations with valid age group and gender information
-d_all_wide <- subset(d_all_wide, !is.na(age_group_zensus))
-d_all_wide <- subset(d_all_wide, sex %in% c("Female", "Male"))
-
-```
-
-
-
-```{r calculate_weights}
-###### INCLUDE ALL PARTICIPANTS REGARDLESS OF NUMBER OF WAVES 
-df <- get_contacts(d_all_wide,min.waves=1)
-
-# Function to calculate weights based on strata -  wave stratified datasets will be passed to this function
-get_weights <- function(data) {
-  d <- data %>% 
-    group_by(strata_cat) %>%
-    mutate(strat_samplesize = n()) %>%
-    ungroup() %>%
-    mutate(weight_bl_age_sex_hh = round(pop_strat_size/strat_samplesize,0))  # Calculate weights. Rounded to ensure full integer values
-  return(d)
-}
-
-####FUNCTION TO CALCULATE WEIGHTS#################
-calc.weights <- function(data){
-  data <- data %>%
-    left_join(Zensus_strata) %>% # Join strata population size and rename
-    mutate(pop_strat_size = Freq,.keep="unused") %>% # rename variabe
-    group_by(wave) %>% # create wave-stratified datasets
-    tidyr::nest() %>%
-    mutate(new_dat = lapply(data,get_weights)) %>% # apply weighting function to create new datasets containing weight variables
-    dplyr::select(wave,new_dat) %>% # select only new dataset
-    unnest(cols = new_dat) %>% # unnest = combine into one data.frame
-    dplyr::select(new_id,wave,everything()) %>% # reorder
-    arrange(new_id,wave) %>% # sort for better overview
-    filter(!is.na(weight_bl_age_sex_hh)) %>%
-    ungroup %>%
-    return()
-}
-##################################################
-
-
-
-
-#####CALCULATE WEIGHTS########################################
-df <- calc.weights(df)
-#####CALCULAtE WEIGHTS FOR WEEKDAY/WEEKEND
-df <- df %>% mutate(dayweight = case_when(weekend_weekday=="weekend"~ 2/7,
-                            weekend_weekday=="weekday"~5/7))
-#####COMBINE BOTH WEIGHTS
-df$weight <- df$weight_bl_age_sex_hh*df$dayweight
-##############################################################
-
-
-
-
-plot.mean.df <- function(x,waves=levels(x$wave),weighted=F,R=1000,title="Bootstraped mean value with 95% percentile CI - R = 1000 ") {
-set.seed(12345678)
-plot_df <- x %>%
-  filter(wave %in% waves) %>%
-  dplyr::group_by(wave) %>%
-  do(boot_mean(.$contacts,w=.$weight)) %>%
-  ungroup 
-}
-
-
-change.waves <- function(x){
-x$wave_2 <- as.numeric(x$wave)+100
-x$wave_2[x$wave_2==101]<-1
-x$wave_2[x$wave_2==102]<-3
-x$wave_2[x$wave_2==103]<-5
-x$wave_2[x$wave_2==104]<-7
-x$wave_2[x$wave_2==105]<-9
-x$wave_2[x$wave_2==106]<-11
-x$wave_2[x$wave_2==107]<-13
-x$wave_2[x$wave_2==108]<-15
-x$wave_2[x$wave_2==109]<-19
-x$wave_2[x$wave_2==110]<-23
-x$wave_2[x$wave_2==111]<-25
-x$wave_2[x$wave_2==112]<-27
-x$wave_2[x$wave_2==113]<-28
-x$wave_2[x$wave_2==114]<-31
-x$wave_2[x$wave_2==115]<-33
-x$wave_2[x$wave_2==116]<-35
-x$wave_2[x$wave_2==117]<-40
-x$wave_2[x$wave_2==118]<-44
-x$wave_2[x$wave_2==119]<-47
-x$wave_2[x$wave_2==120]<-50
-x$wave_2[x$wave_2==121]<-55
-x$wave_2[x$wave_2==122]<-57
-x$wave_2[x$wave_2==123]<-59
-x$wave_2[x$wave_2==124]<-63
-x$wave_2[x$wave_2==125]<-67
-x$wave_2[x$wave_2==126]<-71
-x$wave_2[x$wave_2==127]<-74
-x$wave_2[x$wave_2==128]<-76
-x$wave_2[x$wave_2==129]<-78
-x$wave_2[x$wave_2==130]<-80
-x$wave_2[x$wave_2==131]<-82
-return(x)
-}
-
-```
-
-
-```{r}
-# #new age groups
-# groups <- sort(unique(df$age_group))
-# groups <- setdiff(groups,c("Don’t know","Prefer not to answer","<1"))
-# df$age_group_2[df$age_group=="<1" | df$age_group=="1-4" | df$age_group=="5-9"| df$age_group=="10-14" | df$age_group=="15-19"] <- "0-19"
-# df$age_group_2[df$age_group=="20-24" | df$age_group=="25-34" ] <- "20-34"
-# df$age_group_2[df$age_group=="35-44" | df$age_group=="45-54"] <- "35-54"
-# df$age_group_2[ df$age_group=="55-64" ] <- "55-64"
-# df$age_group_2[ df$age_group=="65-69"] <- "65-69"
-# df$age_group_2[ df$age_group=="70-74" | df$age_group=="75-79" | df$age_group=="80-84" | df$age_group=="85+"] <- "70+"
-# group2_2 <- sort(unique(df$age_group_2))
-
-
-#generate max number of contacts for y-axis
-df$contacts<-df$all_contact_n_Q75
-plot_df<-plot.mean.df(df)
-max_y_axis<-max(plot_df$upper)
-
-# define labels
-label_17waves <- c("30.04.-06.05.", "14.05.–21.05.", "28.05.–04.06.", "11.06.–22.06.", "26.06.-01.07.", "09.07.-16.07.", "24.07-29.07.", "07.08-11.08.",
-                   "04.09.-09.09.", "30.09.-05.10.","14.10.-21.10.", "29.10.-03.11.", "05.11.-10.11.", "25.11.-30.11.", "09.12.-15.12.",
-                   "23.12.-30.12.", "28.01.-02.02.", "24.02.-03.03.", "17.03.-26.03.", "07.04.-15.04.", "12.05.-24.05.", 
-                   "26.05.-03.06.", "09.06.-22.06", "07.07.-19.07.", "04.08.-13.08.", "01.09.-14.09.", "22.09.-06.10.", "08.10.-20.10.", 
-                   "22.10.-02.11.", "03.11-09.11.", "17.11.-23.11.")
-label_16waves <- c("30.04.-06.05.", "14.05.–21.05.", "28.05.–04.06.", "11.06.–22.06.", "26.06.-01.07.", "09.07.-16.07.", "24.07-29.07.", "07.08-11.08.", "04.09.-09.09.", "30.09.-05.10.",
-                              "14.10.-21.10.", "29.10.-03.11.", "05.11.-10.11.", "25.11.-30.11.", "09.12.-15.12.", 
-                              "23.12.-30.12.")
-#define breaks
-breaks_17waves <- c(1,3,5,7,9,11,13,15,19,23,25,27,28, 31, 33, 35, 40, 44, 47, 50, 55, 57, 59, 63, 67, 71, 74, 76, 78, 80, 82)
-breaks_16waves <- c(1,3,5,7,9,11,13,15,19,23,25,27,28, 31, 33, 35)
-```
-
-#Mask wearing
 ```{r}
 table1(~mask_0 + transportno_0|wave, data=df)
 
@@ -2639,6 +2220,7 @@ mask_per_wave_restricted <- ggplot(df_histo,
                       labels = c("No", "Yes")) + 
     xlab("Wave") +
     ylab("Percentage") +
+    ggtitle("Mask restricted to those with at least one non-hh contact")+
     theme_bw() +
     theme(axis.text.x = element_text(colour = "black", size = 15, 
                                      angle = 90, hjust = 0.5, vjust = 0,5),
@@ -2652,7 +2234,7 @@ mask_per_wave_restricted <- ggplot(df_histo,
           panel.background = element_blank(),
           panel.grid = element_blank(),
           plot.background = element_blank(),
-          plot.title = element_text(colour = "black", size = base_size + 2, face = "bold",
+          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
                                     hjust = 0.5),
           strip.background = element_blank(),
           strip.text = element_text(colour = "black", size = base_size, face = "bold"))
@@ -2663,7 +2245,7 @@ ggsave(mask_per_wave_restricted, width=10, height=7)
 
 ```
 
-# Transport Use
+## Transport Use
 
 ```{r}
 
@@ -2710,11 +2292,9 @@ transport_per_wave_all <- paste0(path_figures, "/transport_all", ".png")
 ggsave(transport_per_wave_all, width=10, height=7)
 ```
 
-
-
-
-# Percent people having no non-hh contact
+## Percent people having non-hh contact
 ```{r}
+
 
 df_histo <- df %>% select(new_id, wave, non_hh_contact_n_Q75)
 df_histo$wave_num <- as.numeric(df_histo$wave)
@@ -2760,2659 +2340,133 @@ ggsave(no_non_hh_contact_name, width=10, height=7)
 
 ```
 
-
-
-
-### Only inside household contacts 
-```{r}
-df$contacts<-df$hh_contact_n_inside
-plot.mean(df,weighted = T,title="Weighted bootstraped mean with 95% percentile CI - R = 1000 ")
-#n.table(df$wave)
-
-```
-
-
-## Only outside household contacts 
-```{r}
-df$contacts<-df$hh_contact_n_outside
-plot.mean(df,weighted = T,title="Weighted bootstraped mean with 95% percentile CI - R = 1000 ")
-#n.table(df$wave)
-
-```
-
-
-## All contacts incl. group contacts 
-```{r all_with_Q}
-df$contacts<-df$all_contact_n_Q75
-#plot.mean(df,weighted = T,title="")
-#n.table(df$wave)
-plot_df<-plot.mean.df(df)
-plot_df <- change.waves(plot_df)
-plot_df_all_contacts_Q <- plot_df
-
-all_contacts_Q<- ggplot(aes(x=wave_2,y=mean),data=plot_df) +
-  labs(x = "Date", y= "Mean contacts") +
-  theme(panel.background = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),  axis.line = element_line(colour = "black"), plot.title = element_text(face="bold", size=16, colour = "black"), axis.title = element_text(size=16, face="bold", colour = "black"), axis.text.x = element_text(size = 15, colour = "black", angle = 90, vjust=0.5),  axis.text.y = element_text(size = 15, colour = "black")) +
-  scale_x_continuous(breaks=breaks_17waves,labels = label_17waves, expand=c(0,0)) +
-  geom_line(group=1, color = "#028482", size=1) +
-  geom_point(colour = "#028482") +
-  geom_ribbon(aes(ymin=lower,ymax=upper), linetype=2, alpha=0.1,group=1, fill = "#028482") +
-  scale_y_continuous(expand=c(0,0), limits=c(0, max_y_axis))
-
-all_contacts_Q
-
-Setting_panel_FILENAME <- paste0(path_figures, "/Weighted mean contacts with Q_",truncate, ".png")
-ggsave(Setting_panel_FILENAME, width=10, height=7)
-
-```
-
-#
-# Descriptives
-##Preparation 
-
-```{r Table one Vorbereitung}
-d_all_wide$age_group[is.na(d_all_wide$age_group)] <- "5-9" #17426a14 #wave 6-8
-d_self_all$age_group[is.na(d_self_all$age_group)] <- "5-9" #17426a14 #wave 6-8
-
-#Table 1
-# label (für Altersgruppen)
-d_all_wide$age_group[d_all_wide$age_group=="85 years or older"] <- "85+" 
-d_all_wide$age_group[which(d_all_wide$age_group == "Under 1")] <- "<1" 
-
-#new classification preperation
-d_all_wide$age_group_tab <- d_all_wide$age_group
-d_all_wide$age_group_tab_2 <- d_all_wide$age_group
-
-label(d_all_wide$gender_0) <- "Sex of Participants"
-label(d_all_wide$qmktsize_16_0) <- "Region of Participants"
-d_all_wide$wave_two <- d_all_wide$wave
-d_all_wide$wave_two <- 
-  factor(d_all_wide$wave_two,
-         labels=c("3/3 - 10/3", # Reference
-                  "31/3 - 7/4", 
-                  "21/4 - 28/4",
-                  "12/5 - 19/5",
-                  "2/6 - 9/6",
-                  "23/6 - 30/6",
-                  "14/7 - 21/7",
-                  "4/8 -11/8"))
-label(d_all_wide$wave_two) <- "Waves"
-d_all_wide$hh_p_incl_0_2 <- d_all_wide$hh_p_incl_0 # Zusammenfassung der hh size
-d_all_wide$hh_p_incl_0_2[d_all_wide$hh_p_incl_0_2==1] <- "1"
-d_all_wide$hh_p_incl_0_2[d_all_wide$hh_p_incl_0_2==2] <- "2"
-d_all_wide$hh_p_incl_0_2[d_all_wide$hh_p_incl_0_2==3] <- "3"
-d_all_wide$hh_p_incl_0_2[d_all_wide$hh_p_incl_0_2>=4] <- "4+" # Änderung ggü. Originaldaten
-d_all_wide$hh_p_incl_0_2[d_all_wide$hh_p_incl_0_2==10] <- "4+" # Änderung ggü. Originaldaten
-d_all_wide$hh_p_incl_0_2[d_all_wide$hh_p_incl_0_2==11] <- "4+" # Änderung ggü. Originaldaten
-d_all_wide$hh_p_incl_0_2[d_all_wide$hh_p_incl_0_2==12] <- "4+" # Änderung ggü. Originaldaten
-d_all_wide$hh_p_incl_0_2 <- factor(d_all_wide$hh_p_incl_0_2, levels=c("1","2","3","4+"))
-label(d_all_wide$hh_p_incl_0_2)     <- "Household Size"
-
-d_all_wide$age_group <- factor(d_all_wide$age_group, levels=c("<1","1-4","5-9","10-14","15-19","20-24",
-                                                              "25-34","35-44","45-54","55-64",
-                                                              "65-69","70-74","75-79","80-84","85+"))
-label(d_all_wide$age_group)     <- "Age Group"
-
-
-#Another classification
-d_all_wide$age_group_tab[d_all_wide$age_group_tab == "<1" | d_all_wide$age_group_tab == "1-4" |
-                           d_all_wide$age_group_tab == "5-9"|  d_all_wide$age_group_tab == "10-14" |
-                           d_all_wide$age_group_tab == "15-19"] <- "0-19"
-
-d_all_wide$age_group_tab[d_all_wide$age_group_tab == "20-24" | d_all_wide$age_group_tab == "25-34" |
-                           d_all_wide$age_group_tab == "35-44"|  d_all_wide$age_group_tab == "45-54" |
-                           d_all_wide$age_group_tab == "55-64"] <- "20-64"
-
-d_all_wide$age_group_tab[d_all_wide$age_group_tab == "65-69" | d_all_wide$age_group_tab == "70-74"] <- "65-74"
-
-d_all_wide$age_group_tab[d_all_wide$age_group_tab == "75-79" | d_all_wide$age_group_tab == "80-84" |d_all_wide$age_group_tab == "85+"] <- "75+"
-
-d_all_wide$age_group_tab <- factor(d_all_wide$age_group_tab, levels=c("0-19","20-64","65-74","75+", 
-                                                                      "Don't know", "Prefer not to answer"))
-label(d_all_wide$age_group_tab)     <- "Age Group"
-
-
-
-
-#Another classification
-d_all_wide$age_group_tab_2[d_all_wide$age_group_tab_2 == "<1" | d_all_wide$age_group_tab_2 == "1-4" |
-                             d_all_wide$age_group_tab_2 == "5-9" | d_all_wide$age_group_tab_2 == "10-14"] <- "0-14"
-d_all_wide$age_group_tab_2[d_all_wide$age_group_tab_2 == "65-69" | d_all_wide$age_group_tab_2 == "70-74"] <- "65-74"
-d_all_wide$age_group_tab_2[d_all_wide$age_group_tab_2== "75-79" | d_all_wide$age_group_tab_2 == "80-84" |
-                             d_all_wide$age_group_tab_2 == "85+"] <- "75+"
-
-d_all_wide$age_group_tab_2 <- factor(d_all_wide$age_group_tab_2, levels=c("0-14","15-19","20-24","25-34","35-44", 
-                                                                          "45-54", "55-64", "65-74", "75+", "Don't know", 
-                                                                          "Prefer not to answer"))
-label(d_all_wide$age_group_tab_2)     <- "Age Group"
-
-
-# diese Funktion verändert die Darstellung in der Tabelle " Freq (Prozent in Klammern)"
-my.render.cat <- function(x) {
-  c("", sapply(stats.default(x), function(y) with(y,
-                                                  sprintf("%d (%0.0f%%)", FREQ, PCTnoNA))))
-}
-
-
-#table shows number of households per wave and overall
-table1::table1(~age_group + gender_0 + hh_p_incl_0_2 + qmktsize_16_0 |wave_two, data=d_all_wide,
-               render.categorical=my.render.cat, overall = NULL, caption = "<h3><b>All Bundesländer</b></h3>")
-
-#table shows number of households per wave and overall
-table1::table1(~age_group_tab + gender_0 + hh_p_incl_0_2 + qmktsize_16_0 |wave_two, data=d_all_wide,
-               render.categorical=my.render.cat, overall = NULL, caption = "<h3><b>All Bundesländer</b></h3>")
-
-#table shows number of households per wave and overall
-table1 <- table1::table1(~age_group_tab_2 + gender_0 + hh_p_incl_0_2 + qmktsize_16_0 |wave_two, data=d_all_wide,
-               render.categorical=my.render.cat, overall = NULL, caption = "<h3><b>All Bundesländer</b></h3>")
-
-#Area urban-rural table
-table1::table1(~age_group_tab_2 + gender_0 + hh_p_incl_0_2 + wave_two|qmktsize_16_0, data=d_all_wide,
-               render.categorical=my.render.cat, overall = NULL, caption = "<h4><b>Table 1 - Overview urban-rural areas</b></h4>")
-
-
-table1::table1(~age_group_tab_2 + gender_0 + hh_p_incl_0_2 + wave_two|qmktsize_16_0, data=d_all_wide,
-                         render.categorical=my.render.cat, overall = NULL, caption = "<h4><b>Table 1 - Overview urban-rural areas</b></h4>")
-
-#library('xtable')
-#print(xtable(as.matrix(as.data.frame((table1))), type = "latex", file = "filename2.tex", sizebox =0.7))
-
-
-
-#nach Bundesland
-table_brandenburg <- d_all_wide %>% 
-  filter(bundesland_0 == "Brandenburg")
-table_berlin <- d_all_wide %>% 
-  filter(bundesland_0 == "Berlin")
-table_badenw <- d_all_wide %>% 
-  filter(bundesland_0 == "Baden-Württemberg")
-table_bayern <- d_all_wide %>% 
-  filter(bundesland_0 == "Bayern")
-#Brandenburg tab 2
-table1::table1(~age_group_tab_2 + +gender_0 + hh_p_incl_0_2 + qmktsize_16_0  |wave_two, data=table_brandenburg, 
-               render.categorical=my.render.cat, overall = NULL, caption = "<h3><b>Brandenburg</b></h3>")
-
-#Brandenburg tab
-table1::table1(~age_group_tab + +gender_0 + hh_p_incl_0_2 + qmktsize_16_0  |wave_two, data=table_brandenburg, 
-               render.categorical=my.render.cat, overall = NULL, caption = "<h3><b>Brandenburg</b></h3>")
-
-#Berlin tab 2
-table1::table1(~age_group_tab_2 + +gender_0 + hh_p_incl_0_2 + qmktsize_16_0  |wave_two, data=table_berlin, 
-               render.categorical=my.render.cat, overall = NULL, caption = "<h3><b>Berlin</b></h3>")
-
-#Berlin tab
-table1::table1(~age_group_tab + +gender_0 + hh_p_incl_0_2 + qmktsize_16_0 |wave_two, data=table_berlin, 
-               render.categorical=my.render.cat, overall = NULL, caption = "<h3><b>Berlin</b></h3>")
-
-
-#Baden-Württemberg tab2
-table1::table1(~age_group_tab_2 + +gender_0 + hh_p_incl_0_2 + qmktsize_16_0  |wave_two, data=table_badenw, 
-               render.categorical=my.render.cat, overall = NULL, caption = "<h3><b>Baden-Württemberg</b></h3>")
-
-#Baden-Württemberg tab
-table1::table1(~age_group_tab + +gender_0 + hh_p_incl_0_2 + qmktsize_16_0 |wave_two, data=table_badenw, 
-               render.categorical=my.render.cat, overall = NULL, caption = "<h3><b>Baden-Württemberg</b></h3>")
-#Bayern tab2
-table1::table1(~age_group_tab_2 + +gender_0 + hh_p_incl_0_2 + qmktsize_16_0 |wave_two, data=table_bayern, 
-               render.categorical=my.render.cat, overall = NULL, caption = "<h3><b>Bayern</b></h3>")
-
-#Bayern tab
-table1::table1(~age_group_tab + +gender_0 + hh_p_incl_0_2 + qmktsize_16_0 |wave_two, data=table_bayern, 
-               render.categorical=my.render.cat, overall = NULL, caption = "<h3><b>Bayern</b></h3>")
-
-
-
-
-```
-
-
-## Kontaktplots
-Q79 , check Q75,etc.....
+# Mean contacts over time
 
 ```{r}
-plot_1_se <- summarySE(d_all_wide, measurevar =  "all_contact_n_Q79",groupvar = c("wave_two", "qmktsize_16_0"),na.rm = TRUE)
-plot_1_se
 
-
-
-# Plot: All Contacts - all waves - all areas - log(+1)-scale
-aaa <- ggplot(d_all_wide, aes(y=all_contact_n_Q79, x= as.factor(wave_two))) +
-  geom_boxplot(aes(fill = qmktsize_16_0)) +
-  #geom_errorbar(data = plot_1_se, aes(ymin=all_contact_n_Q79-se, ymax=all_contact_n_Q79+se, fill = qmktsize_16_0),
-                 #width=.35,                    # Width of the error bars
-                 #position=position_dodge(.75)) +
-  geom_point(data=plot_1_se, aes(fill = qmktsize_16_0), col="red", position=position_dodge(.75)) +
-  scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(0,2,3,4,5,200,400,600,800,1200), limits = c(0, 1200)) + 
-  #stat_summary(fun=mean, geom="point", aes(group = as.factor(qmktsize_16_0)), position=position_dodge(.75),
-               #color="red", size=1.5) +
-  labs(x = "Waves") +
-  labs(y = "All contacts[logscale]") +
-  theme(text = element_text(size=6.5)) +
-  labs(fill = "Area") +
-  scale_fill_manual(values=c("#E64B35B2", "#00A087B2", "#4DBBD5B2")) +
-  # theme(legend.position="none") +
-  labs(title = "Number of all contacts per wave and area") +
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.text.x = element_text(angle = 90)) +
-  theme(panel.grid.minor = element_blank())
-
-aaa
-
-# Plot: All Non-Household contacts - all waves - all areas - log(+1)-scale
-
-plot_2_se <- summarySE(d_all_wide, measurevar =  "non_hh_contact_n_Q79",
-                       groupvar = c("wave_two", "qmktsize_16_0"), na.rm = TRUE)
-plot_2_se
-
-
-
-bbb <- ggplot(d_all_wide, aes(y=non_hh_contact_n_Q79, x= as.factor(wave_two))) +
-  geom_boxplot(aes(fill = qmktsize_16_0)) +
-  geom_point(data=plot_2_se, aes(fill = qmktsize_16_0), col="red", position=position_dodge(.75)) +
-  scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(0,2,3,4,5,200,400,600,800,1200), limits = c(0, 1200)) + 
-  labs(x = "Waves") +
-  labs(y = "Non-household contacts[logscale]") +
-  theme(text = element_text(size=6.5)) +
-  labs(fill = "Area") +
-  scale_fill_manual(values=c("#E64B35B2", "#00A087B2", "#4DBBD5B2")) +
-  # theme(legend.position="none") +
-  labs(title = "Number of non-household contacts per wave and area") +
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.text.x = element_text(angle = 90)) +
-  theme(panel.grid.minor = element_blank())
-
-bbb
-# Plot: All Household contacts - all waves - all areas -log(+1)-scale
-plot_3_se <- summarySE(d_all_wide, measurevar =  "hh_contact_n",
-                       groupvar = c("wave_two", "qmktsize_16_0"), na.rm = TRUE)
-plot_3_se
-
-ccc <- ggplot(d_all_wide, aes(y=hh_contact_n, x= as.factor(wave_two))) +
-  geom_boxplot(aes(fill = qmktsize_16_0)) +
-  geom_point(data=plot_3_se, aes(fill = qmktsize_16_0), col="red", position=position_dodge(.75)) +
-  scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(0, 1,2,3, 4,5, 6,7, 8,9, 10), limits = c(0, 10)) + 
-  #facet_grid(. ~ as.factor(wave), scales="free",  space="free") +
-  #scale_y_log10()+
-  labs(x = "Waves") +
-  labs(y = "Household contacts[logscale]") +
-  theme(text = element_text(size=6.5)) +
-  labs(fill = "Area") +
-  #stat_summary(fun=mean, geom="point",  aes(group=qmktsize_16_0), position=position_dodge(.75),
-               #color="red", size=1.5) +
-  scale_fill_manual(values=c("#E64B35B2", "#00A087B2", "#4DBBD5B2")) +
-  # theme(legend.position="none") +
-  labs(title = "Number of household-contacts per wave and area") +
-  theme(plot.title = element_text(hjust = 0.5),
-        axis.text.x = element_text(angle = 90)) +
-  theme(panel.grid.minor = element_blank())
-
-ccc
-
-# Plot: Pseudo All Contacts (limit to 50) - all waves - all areas - log(+1)-scale
-plot_4_se <- summarySE(d_all_wide, measurevar =  "pseudo_all_contact_n_Q79",
-                       groupvar = c("wave_two", "qmktsize_16_0"), na.rm = TRUE)
-plot_4_se
-
-ddd <- ggplot(d_all_wide, aes(y=pseudo_all_contact_n_Q79, x= as.factor(wave_two))) +
-  geom_boxplot(aes(fill = qmktsize_16_0)) +
-  #geom_errorbar(data = plot_1_se, aes(ymin=all_contact_n_Q79-se, ymax=all_contact_n_Q79+se, fill = qmktsize_16_0),
-  #width=.35,                    # Width of the error bars
-  #position=position_dodge(.75)) +
-  geom_point(data=plot_4_se, aes(fill = qmktsize_16_0), col="red", position=position_dodge(.75)) +
-  scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(0,2,3,4,5,200,300), limits = c(0, 300)) + 
-  #stat_summary(fun=mean, geom="point", aes(group = as.factor(qmktsize_16_0)), position=position_dodge(.75),
-  #color="red", size=1.5) +
-  labs(x = "Waves") +
-  labs(y = "Truncated all contacts[logscale]") +
-  theme(text = element_text(size=6.5)) +
-  labs(fill = "Area") +
-  scale_fill_manual(values=c("#E64B35B2", "#00A087B2", "#4DBBD5B2")) +
-  theme(legend.position="none") +
-  labs(title = "Number of all contacts (truncated group contacts) per wave and area") +
-  theme(plot.title = element_text(hjust = 0.5)) +
-  theme(panel.grid.minor = element_blank())
-
-ddd
-
-# Plot: All Non-Household contacts - all waves - all areas - log(+1)-scale
-
-plot_5_se <- summarySE(d_all_wide, measurevar =  "pseudo_non_hh_contact_n_Q79",
-                       groupvar = c("wave_two", "qmktsize_16_0"), na.rm = TRUE)
-plot_5_se
-
-
-
-eee <- ggplot(d_all_wide, aes(y=pseudo_non_hh_contact_n_Q79, x= as.factor(wave_two))) +
-  geom_boxplot(aes(fill = qmktsize_16_0)) +
-  geom_point(data=plot_5_se, aes(fill = qmktsize_16_0), col="red", position=position_dodge(.75)) +
-  scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(0,2,3,4,5,200,300), limits = c(0, 300)) + 
-  labs(x = "Waves") +
-  labs(y = "Truncated non-household contacts[logscale]") +
-  theme(text = element_text(size=6.5)) +
-  labs(fill = "Area") +
-  scale_fill_manual(values=c("#E64B35B2", "#00A087B2", "#4DBBD5B2")) +
-  theme(legend.position="none") +
-  labs(title = "Number of non-household contacts (truncated group contacts) per wave and area") +
-  theme(plot.title = element_text(hjust = 0.5)) +
-  theme(panel.grid.minor = element_blank())
-
-
-example_legend <- ggplot(d_all_wide, aes(y=hh_contact_n, x= as.factor(wave_two))) +
-  geom_boxplot(aes(fill = qmktsize_16_0)) +
-  geom_point(data=plot_3_se, aes(fill = qmktsize_16_0), col="red", position=position_dodge(.75)) +
-  scale_y_continuous(trans=scales::pseudo_log_trans(base = 10), breaks = c(0,2, 4, 6, 8, 10,12), limits = c(0, 12)) + 
-  labs(x = "Waves") +
-  labs(y = "All household contacts[logscale]") +
-  theme(text = element_text(size=6.5)) +
-  labs(fill = "Area") +
-  scale_fill_manual(values=c("#E64B35B2", "#00A087B2", "#4DBBD5B2")) +
-  theme(legend.position="right") +
-  labs(title = "Number of all household contacts per wave and area") +
-  theme(plot.title = element_text(hjust = 0.5)) +
-  theme(panel.grid.minor = element_blank()) +
-  theme(legend.key.size = unit(2, 'cm'),
-        legend.key.width= unit(2, 'cm'),
-        legend.title = element_text(size = 20), 
-        legend.text = element_text(size = 12))
-  
-eee
-
-box_legend <- cowplot::get_legend(example_legend)
-
-
-gridExtra::grid.arrange(aaa, bbb, ccc, ddd, eee, box_legend, nrow =2)
-
-
-prow <- plot_grid(aaa, bbb, ccc, ddd, eee, box_legend,
-  align = 'v',
-  axis = "tb",
-  labels = c("A", "B", "C", "D", "E"),
-  hjust = -1,
-  nrow = 2
-)
-
-```
-
-
-## Percentage stacked bar plot 
-####prepararion
-
-```{r create data frame for stacked percentage bar plot}
-# place other is saved as class factor, has to be integer remove NAs with 0
-dt_hh_all$place_oth <- as.integer(dt_hh_all$place_oth)
-dt_hh_all$place_oth[is.na(dt_hh_all$place_oth)] <- 0
-#dt_outside_all$place_oth <- as.integer(dt_outside_all$place_oth)
-#dt_outside_all$place_oth[which(dt_outside_all$place_oth==2)] <- 0
-# merge data
-# d_self_all and dummy_hh_group, includes group contacts!
-
-dummy_hh_group <- d_self_all %>% select(new_id, wave, qmktsize_16_0,Q79a_age_met_work_u18,
-                               Q79a_age_met_work_1864, Q79a_age_met_work_o64, 
-                               Q80a_age_met_uni_u18, Q80a_age_met_uni_1864,
-                               Q80a_age_met_uni_o64, Q81a_age_met_else_u18,
-                               Q81a_age_met_else_1864, Q81a_age_met_else_o64)
-
-dummy_hh_group <- merge(dummy_hh_group, dt_hh_all, by=c("new_id", "wave"), all.y=T)
-
-# drop observations that individual has NOT met this day
-#dummy_hh_group <- dummy[!(dummy$hh_met_this_day=="No"),]
-
-# d_self_all and dt_outside_all, no group contacts!
-dummy_outside <- d_self_all %>% select(new_id, wave, qmktsize_16_0)
-dummy_outside <- merge(dummy_outside, dt_outside_all, by=c("new_id","wave"), all.y=T)
-
-
-##### preparation for loops
-# create empty vectors for places to store sums in loop, needed for loops 
-sum_home_own <- c()  
-sum_home_else <- c()
-sum_work  <- c()
-sum_worship  <- c()
-sum_transport  <- c()
-sum_school  <- c()
-sum_shop_essential  <- c()
-sum_shop_non_essential  <- c()
-sum_entertainment  <- c()
-sum_sport  <- c()
-sum_park  <- c()
-sum_healthcare  <- c()
-sum_beauty  <- c()
-sum_other  <- c()
-sum_else  <- c()
-
-# levels
-dummy_hh_group$qmktsize_16_0 <- as.factor(dummy_hh_group$qmktsize_16_0)
-dummy_outside$qmktsize_16_0 <- as.factor(dummy_outside$qmktsize_16_0)
-levels(dummy_hh_group$qmktsize_16_0) <- c("Densely", "Intermediate","Thinly")
-levels(dummy_outside$qmktsize_16_0) <- c("Densely", "Intermediate","Thinly")
-
-# split datasets in thinly, intermediate and densely
-dummy_hh_group_thinly <- dummy_hh_group[which(dummy_hh_group$qmktsize_16_0=="Thinly"),]
-dummy_hh_group_intermediate <- dummy_hh_group[which(dummy_hh_group$qmktsize_16_0=="Intermediate"),]
-dummy_hh_group_densely <- dummy_hh_group[which(dummy_hh_group$qmktsize_16_0=="Densely"),]
-
-dummy_outside_thinly <- dummy_outside[which(dummy_outside$qmktsize_16_0=="Thinly"),]
-dummy_outside_intermediate <- dummy_outside[which(dummy_outside$qmktsize_16_0=="Intermediate"),]
-dummy_outside_densely <- dummy_outside[which(dummy_outside$qmktsize_16_0=="Densely"),]
-
-
-
-```
-## Version 1: All contact (including goup contacts)
-####No stratification
-home_own occupy a large proportion => check 
-
-```{r Version 1 thinly populated}
-## plot for thinly
-# sums up number of people met in a specific place in a specific wave 
-# this is the rows for our dataframe (row = place, column = wave)
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_hh_group$place_home_own[which(dummy_hh_group$wave==i)])+
-                    sum(dummy_outside_thinly$place_home_own[which(dummy_outside_thinly$wave==i)]))
- sum_home_own <- cbind(sum_home_own,home_own)
- # home else
- 
- home_else<- rbind(sum(dummy_hh_group$place_home_else[which(dummy_hh_group$wave==i)])+
-                    sum(dummy_outside_thinly$place_home_else[which(dummy_outside_thinly$wave==i)]))
- sum_home_else <- cbind(sum_home_else,home_else)
- # work (including group contacts)
- 
- work_plot<- rbind(sum(dummy_hh_group$place_home_else[which(dummy_hh_group$wave==i)])+
-                     sum(dummy_outside_thinly$place_home_else[which(dummy_outside_thinly$wave==i)])+
-                     sum(dummy_hh_group$Q79a_age_met_work_u18[which(dummy_hh_group$wave_0==i)], na.rm = TRUE)+
-                     sum(dummy_hh_group$Q79a_age_met_work_1864[which(dummy_hh_group$wave_0==i)],na.rm= TRUE)+
-                     sum(dummy_hh_group$Q79a_age_met_work_o64[which(dummy_hh_group$wave_0==i)],na.rm=TRUE))
- 
- sum_work <- cbind(sum_work, work_plot)
- 
- # worship
- 
-worship_plot<- rbind(sum(dummy_hh_group$place_worship[which(dummy_hh_group$wave==i)])+
-                     sum(dummy_outside_thinly$place_worship[which(dummy_outside_thinly$wave==i)]))
- sum_worship <- cbind(sum_worship,worship_plot)
- 
- # transport
- 
- transport_plot<- rbind(sum(dummy_hh_group$place_transport[which(dummy_hh_group$wave==i)])+
-                        sum(dummy_outside_thinly$place_transport[which(dummy_outside_thinly$wave==i)]))
- sum_transport <- cbind(sum_transport,transport_plot)
- 
- # school
- 
- school_plot<- rbind(sum(dummy_hh_group$place_school[which(dummy_hh_group$wave==i)])+
-                     sum(dummy_outside_thinly$place_school[which(dummy_outside_thinly$wave==i)])+
-                     sum(dummy_hh_group$Q80a_age_met_uni_u18[which(dummy_hh_group$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group$Q80a_age_met_uni_1864[which(dummy_hh_group$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group$Q80a_age_met_uni_o64[which(dummy_hh_group$wave_0==i)],na.rm=TRUE))
- 
- sum_school <- cbind(sum_school, school_plot)
- 
- # shop essential
- 
- shop_essential_plot<- rbind(sum(dummy_hh_group$place_shop_essential[which(dummy_hh_group$wave==i)])+
-                        sum(dummy_outside_thinly$place_shop_essential[which(dummy_outside_thinly$wave==i)]))
- sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
- 
- # shop non essential
- 
- shop_non_essential_plot<- rbind(sum(dummy_hh_group$place_shop_non_essential[which(dummy_hh_group$wave==i)])+
-                        sum(dummy_outside_thinly$place_shop_non_essential[which(dummy_outside_thinly$wave==i)]))
- sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
- 
- # entertainment
- 
- entertainment_plot<- rbind(sum(dummy_hh_group$place_entertainment[which(dummy_hh_group$wave==i)])+
-                        sum(dummy_outside_thinly$place_entertainment[which(dummy_outside_thinly$wave==i)]))
- sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
- 
- # sport
- 
- sport_plot<- rbind(sum(dummy_hh_group$place_sport[which(dummy_hh_group$wave==i)])+
-                        sum(dummy_outside_thinly$place_sport[which(dummy_outside_thinly$wave==i)]))
- sum_sport <- cbind(sum_sport,sport_plot)
- 
-# park
- 
- park_plot<- rbind(sum(dummy_hh_group$place_park[which(dummy_hh_group$wave==i)])+
-                        sum(dummy_outside_thinly$place_park[which(dummy_outside_thinly$wave==i)]))
- sum_park <- cbind(sum_park,park_plot)
- 
- # healthcare
- 
- healthcare_plot<- rbind(sum(dummy_hh_group$place_healthcare[which(dummy_hh_group$wave==i)])+
-                        sum(dummy_outside_thinly$place_healthcare[which(dummy_outside_thinly$wave==i)]))
- sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
- 
- # beauty
- 
- beauty_plot<- rbind(sum(dummy_hh_group$place_beauty[which(dummy_hh_group$wave==i)])+
-                        sum(dummy_outside_thinly$place_beauty[which(dummy_outside_thinly$wave==i)]))
- sum_beauty <- cbind(sum_beauty,beauty_plot)
- 
- # other
- 
- other_plot<- rbind(sum(as.numeric(dummy_hh_group$place_oth[which(dummy_hh_group$wave==i)]),na.rm=TRUE)+
-                        sum(as.numeric(dummy_outside_thinly$place_oth[which(dummy_outside_thinly$wave==i)]),na.rm=TRUE))
- sum_other <- cbind(sum_other,other_plot)
- 
- # else, group contacts met else, interprets NA as 0
- else_plot<- rbind(sum(dummy_hh_group$Q81a_age_met_else_u18[which(dummy_hh_group$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group$Q81a_age_met_else_1864[which(dummy_hh_group$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group$Q81a_age_met_else_o64[which(dummy_hh_group$wave==i)],na.rm=TRUE))
- 
- sum_else <- cbind(sum_else, else_plot)
- 
-# collect all sums in data.frame 
-data_barplot_wide_thinly <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                   sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                   sum_park, sum_healthcare,sum_beauty, sum_other, sum_else))
-
-
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_else,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_thinly) <- c(1:current_wave)
-
-# add place variable as ID
-places_plot <- c(places, "place_else")
-data_barplot_wide_thinly$places <- places_plot
-#rownames(data_barplot_wide_thinly) <- places_plot
-
-# change to long format
-data_barplot_long_thinly <- melt(setDT(data_barplot_wide_thinly), id.vars=c("places"), variable.name="wave")
-
-
-#data_barplot_long_thinly <- data_barplot_wide_thinly %>% 
-#  mutate( ind = factor(row_number())) %>%
-#  gather(variable, value, -ind) # can't handle character?
-#data_barplot_long_thinly$ind <- rep(places_plot,8)
-
-
-
-# plot
-col1 <- brewer.pal(8, "Dark2") 
-col2 <- brewer.pal(7,"Pastel2")
-col <- cbind(col1,col2)
-plot_version1_thinly <- ggplot(data_barplot_long_thinly, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-             scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","else","entertainment","healthcare","home_else","home_own","other","park","school", 
-  "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave")+#labels=c("03/3-10/3","31/3-07/4","21/4-28/4","12/5-19/5", "02/6-09/6","23/6-30/6","14/7-21/7","04/8-11/8")
-  ylab("Percentage")+
-  theme(axis.text.x = element_text(angle=90),plot.title = element_text(size=9),
-        # legend.position = "none",
-        panel.background = element_blank()) +
-  ggtitle("Non-household contacts")
- 
-plot_version1_thinly
-
-
-```
-
-####Density stratification
-######thinly
-
-```{r Version 1 thinly populated}
-## plot for thinly
-# sums up number of people met in a specific place in a specific wave 
-# this is the rows for our dataframe (row = place, column = wave)
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_hh_group_thinly$place_home_own[which(dummy_hh_group_thinly$wave==i)])+
-                    sum(dummy_outside_thinly$place_home_own[which(dummy_outside_thinly$wave==i)]))
- sum_home_own <- cbind(sum_home_own,home_own)
- # home else
- 
- home_else<- rbind(sum(dummy_hh_group_thinly$place_home_else[which(dummy_hh_group_thinly$wave==i)])+
-                    sum(dummy_outside_thinly$place_home_else[which(dummy_outside_thinly$wave==i)]))
- sum_home_else <- cbind(sum_home_else,home_else)
- # work (including group contacts)
- 
- work_plot<- rbind(sum(dummy_hh_group_thinly$place_home_else[which(dummy_hh_group_thinly$wave==i)])+
-                     sum(dummy_outside_thinly$place_home_else[which(dummy_outside_thinly$wave==i)])+
-                     sum(dummy_hh_group_thinly$Q79a_age_met_work_u18[which(dummy_hh_group_thinly$wave_0==i)], na.rm = TRUE)+
-                     sum(dummy_hh_group_thinly$Q79a_age_met_work_1864[which(dummy_hh_group_thinly$wave_0==i)],na.rm= TRUE)+
-                     sum(dummy_hh_group_thinly$Q79a_age_met_work_o64[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE))
- 
- sum_work <- cbind(sum_work, work_plot)
- 
- # worship
- 
-worship_plot<- rbind(sum(dummy_hh_group_thinly$place_worship[which(dummy_hh_group_thinly$wave==i)])+
-                     sum(dummy_outside_thinly$place_worship[which(dummy_outside_thinly$wave==i)]))
- sum_worship <- cbind(sum_worship,worship_plot)
- 
- # transport
- 
- transport_plot<- rbind(sum(dummy_hh_group_thinly$place_transport[which(dummy_hh_group_thinly$wave==i)])+
-                        sum(dummy_outside_thinly$place_transport[which(dummy_outside_thinly$wave==i)]))
- sum_transport <- cbind(sum_transport,transport_plot)
- 
- # school
- 
- school_plot<- rbind(sum(dummy_hh_group_thinly$place_school[which(dummy_hh_group_thinly$wave==i)])+
-                     sum(dummy_outside_thinly$place_school[which(dummy_outside_thinly$wave==i)])+
-                     sum(dummy_hh_group_thinly$Q80a_age_met_uni_u18[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q80a_age_met_uni_1864[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q80a_age_met_uni_o64[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE))
- 
- sum_school <- cbind(sum_school, school_plot)
- 
- # shop essential
- 
- shop_essential_plot<- rbind(sum(dummy_hh_group_thinly$place_shop_essential[which(dummy_hh_group_thinly$wave==i)])+
-                        sum(dummy_outside_thinly$place_shop_essential[which(dummy_outside_thinly$wave==i)]))
- sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
- 
- # shop non essential
- 
- shop_non_essential_plot<- rbind(sum(dummy_hh_group_thinly$place_shop_non_essential[which(dummy_hh_group_thinly$wave==i)])+
-                        sum(dummy_outside_thinly$place_shop_non_essential[which(dummy_outside_thinly$wave==i)]))
- sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
- 
- # entertainment
- 
- entertainment_plot<- rbind(sum(dummy_hh_group_thinly$place_entertainment[which(dummy_hh_group_thinly$wave==i)])+
-                        sum(dummy_outside_thinly$place_entertainment[which(dummy_outside_thinly$wave==i)]))
- sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
- 
- # sport
- 
- sport_plot<- rbind(sum(dummy_hh_group_thinly$place_sport[which(dummy_hh_group_thinly$wave==i)])+
-                        sum(dummy_outside_thinly$place_sport[which(dummy_outside_thinly$wave==i)]))
- sum_sport <- cbind(sum_sport,sport_plot)
- 
-# park
- 
- park_plot<- rbind(sum(dummy_hh_group_thinly$place_park[which(dummy_hh_group_thinly$wave==i)])+
-                        sum(dummy_outside_thinly$place_park[which(dummy_outside_thinly$wave==i)]))
- sum_park <- cbind(sum_park,park_plot)
- 
- # healthcare
- 
- healthcare_plot<- rbind(sum(dummy_hh_group_thinly$place_healthcare[which(dummy_hh_group_thinly$wave==i)])+
-                        sum(dummy_outside_thinly$place_healthcare[which(dummy_outside_thinly$wave==i)]))
- sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
- 
- # beauty
- 
- beauty_plot<- rbind(sum(dummy_hh_group_thinly$place_beauty[which(dummy_hh_group_thinly$wave==i)])+
-                        sum(dummy_outside_thinly$place_beauty[which(dummy_outside_thinly$wave==i)]))
- sum_beauty <- cbind(sum_beauty,beauty_plot)
- 
- # other
- 
- other_plot<- rbind(sum(as.numeric(dummy_hh_group_thinly$place_oth[which(dummy_hh_group_thinly$wave==i)]),na.rm=TRUE)+
-                        sum(as.numeric(dummy_outside_thinly$place_oth[which(dummy_outside_thinly$wave==i)]),na.rm=TRUE))
- sum_other <- cbind(sum_other,other_plot)
- 
- # else, group contacts met else, interprets NA as 0
- else_plot<- rbind(sum(dummy_hh_group_thinly$Q81a_age_met_else_u18[which(dummy_hh_group_thinly$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q81a_age_met_else_1864[which(dummy_hh_group_thinly$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q81a_age_met_else_o64[which(dummy_hh_group_thinly$wave==i)],na.rm=TRUE))
- 
- sum_else <- cbind(sum_else, else_plot)
- 
-# collect all sums in data.frame 
-data_barplot_wide_thinly <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                   sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                   sum_park, sum_healthcare,sum_beauty, sum_other, sum_else))
-
-
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_else,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_thinly) <- c(1:current_wave)
-
-# add place variable as ID
-places_plot <- c(places, "place_else")
-data_barplot_wide_thinly$places <- places_plot
-#rownames(data_barplot_wide_thinly) <- places_plot
-
-# change to long format
-data_barplot_long_thinly <- melt(setDT(data_barplot_wide_thinly), id.vars=c("places"), variable.name="wave")
-
-
-#data_barplot_long_thinly <- data_barplot_wide_thinly %>% 
-#  mutate( ind = factor(row_number())) %>%
-#  gather(variable, value, -ind) # can't handle character?
-#data_barplot_long_thinly$ind <- rep(places_plot,8)
-
-
-
-# plot
-col1 <- brewer.pal(8, "Dark2") 
-col2 <- brewer.pal(7,"Pastel2")
-col <- cbind(col1,col2)
-plot_version1_thinly <- ggplot(data_barplot_long_thinly, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-             scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","else","entertainment","healthcare","home_else","home_own","other","park","school", 
-  "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave")+#labels=c("03/3-10/3","31/3-07/4","21/4-28/4","12/5-19/5", "02/6-09/6","23/6-30/6","14/7-21/7","04/8-11/8")
-  ylab("Percentage")+
-  theme(axis.text.x = element_text(angle=90),plot.title = element_text(size=9),legend.position = "none",panel.background = element_blank()) +
-  ggtitle("Thinly populated areas")
- 
-plot_version1_thinly
-
-
-```
-
-#####intermediate
-
-```{r intermediate }
-## plot for intermediate
-# sums up number of people met in a specific place in a specific wave 
-# this is the rows for our dataframe (row = place, column = wave)
-# create empty vectors for places to store sums in loop, needed for loops 
-sum_home_own <- c()  
-sum_home_else <- c()
-sum_work  <- c()
-sum_worship  <- c()
-sum_transport  <- c()
-sum_school  <- c()
-sum_shop_essential  <- c()
-sum_shop_non_essential  <- c()
-sum_entertainment  <- c()
-sum_sport  <- c()
-sum_park  <- c()
-sum_healthcare  <- c()
-sum_beauty  <- c()
-sum_other  <- c()
-sum_else  <- c()
-
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_hh_group_intermediate$place_home_own[which(dummy_hh_group_intermediate$wave==i)])+
-                    sum(dummy_outside_intermediate$place_home_own[which(dummy_outside_intermediate$wave==i)]))
- sum_home_own <- cbind(sum_home_own,home_own)
- # home else
- 
- home_else<- rbind(sum(dummy_hh_group_intermediate$place_home_else[which(dummy_hh_group_intermediate$wave==i)])+
-                    sum(dummy_outside_intermediate$place_home_else[which(dummy_outside_intermediate$wave==i)]))
- sum_home_else <- cbind(sum_home_else,home_else)
- # work (including group contacts)
- 
- work_plot<- rbind(sum(dummy_hh_group_intermediate$place_home_else[which(dummy_hh_group_intermediate$wave==i)])+
-                     sum(dummy_outside_intermediate$place_home_else[which(dummy_outside_intermediate$wave==i)])+
-                     sum(dummy_hh_group_intermediate$Q79a_age_met_work_u18[which(dummy_hh_group_intermediate$wave_0==i)], na.rm = TRUE)+
-                     sum(dummy_hh_group_intermediate$Q79a_age_met_work_1864[which(dummy_hh_group_intermediate$wave_0==i)],na.rm= TRUE)+
-                     sum(dummy_hh_group_intermediate$Q79a_age_met_work_o64[which(dummy_hh_group_intermediate$wave_0==i)],na.rm=TRUE))
- 
- sum_work <- cbind(sum_work, work_plot)
- 
- # worship
- 
-worship_plot<- rbind(sum(dummy_hh_group_intermediate$place_worship[which(dummy_hh_group_intermediate$wave==i)])+
-                     sum(dummy_outside_intermediate$place_worship[which(dummy_outside_intermediate$wave==i)]))
- sum_worship <- cbind(sum_worship,worship_plot)
- 
- # transport
- 
- transport_plot<- rbind(sum(dummy_hh_group_intermediate$place_transport[which(dummy_hh_group_intermediate$wave==i)])+
-                        sum(dummy_outside_intermediate$place_transport[which(dummy_outside_intermediate$wave==i)]))
- sum_transport <- cbind(sum_transport,transport_plot)
- 
- # school
- 
- school_plot<- rbind(sum(dummy_hh_group_intermediate$place_school[which(dummy_hh_group_intermediate$wave==i)])+
-                     sum(dummy_outside_intermediate$place_school[which(dummy_outside_intermediate$wave==i)])+
-                     sum(dummy_hh_group_intermediate$Q80a_age_met_uni_u18[which(dummy_hh_group_intermediate$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_intermediate$Q80a_age_met_uni_1864[which(dummy_hh_group_intermediate$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_intermediate$Q80a_age_met_uni_o64[which(dummy_hh_group_intermediate$wave_0==i)],na.rm=TRUE))
- 
- sum_school <- cbind(sum_school, school_plot)
- 
- # shop essential
- 
- shop_essential_plot<- rbind(sum(dummy_hh_group_intermediate$place_shop_essential[which(dummy_hh_group_intermediate$wave==i)])+
-                        sum(dummy_outside_intermediate$place_shop_essential[which(dummy_outside_intermediate$wave==i)]))
- sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
- 
- # shop non essential
- 
- shop_non_essential_plot<- rbind(sum(dummy_hh_group_intermediate$place_shop_non_essential[which(dummy_hh_group_intermediate$wave==i)])+
-                        sum(dummy_outside_intermediate$place_shop_non_essential[which(dummy_outside_intermediate$wave==i)]))
- sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
- 
- # entertainment
- 
- entertainment_plot<- rbind(sum(dummy_hh_group_intermediate$place_entertainment[which(dummy_hh_group_intermediate$wave==i)])+
-                        sum(dummy_outside_intermediate$place_entertainment[which(dummy_outside_intermediate$wave==i)]))
- sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
- 
- # sport
- 
- sport_plot<- rbind(sum(dummy_hh_group_intermediate$place_sport[which(dummy_hh_group_intermediate$wave==i)])+
-                        sum(dummy_outside_intermediate$place_sport[which(dummy_outside_intermediate$wave==i)]))
- sum_sport <- cbind(sum_sport,sport_plot)
- 
-# park
- 
- park_plot<- rbind(sum(dummy_hh_group_intermediate$place_park[which(dummy_hh_group_intermediate$wave==i)])+
-                        sum(dummy_outside_intermediate$place_park[which(dummy_outside_intermediate$wave==i)]))
- sum_park <- cbind(sum_park,park_plot)
- 
- # healthcare
- 
- healthcare_plot<- rbind(sum(dummy_hh_group_intermediate$place_healthcare[which(dummy_hh_group_intermediate$wave==i)])+
-                        sum(dummy_outside_intermediate$place_healthcare[which(dummy_outside_intermediate$wave==i)]))
- sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
- 
- # beauty
- 
- beauty_plot<- rbind(sum(dummy_hh_group_intermediate$place_beauty[which(dummy_hh_group_intermediate$wave==i)])+
-                        sum(dummy_outside_intermediate$place_beauty[which(dummy_outside_intermediate$wave==i)]))
- sum_beauty <- cbind(sum_beauty,beauty_plot)
- 
- # other
- 
- other_plot<- rbind(sum(as.numeric(dummy_hh_group_intermediate$place_oth[which(dummy_hh_group_intermediate$wave==i)]),na.rm=TRUE)+
-                        sum(as.numeric(dummy_outside_intermediate$place_oth[which(dummy_outside_intermediate$wave==i)]),na.rm=TRUE))
- sum_other <- cbind(sum_other,other_plot)
- 
- # else, group contacts met else, interprets NA as 0
- else_plot<- rbind(sum(dummy_hh_group_intermediate$Q81a_age_met_else_u18[which(dummy_hh_group_intermediate$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_intermediate$Q81a_age_met_else_1864[which(dummy_hh_group_intermediate$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_intermediate$Q81a_age_met_else_o64[which(dummy_hh_group_intermediate$wave==i)],na.rm=TRUE))
- 
- sum_else <- cbind(sum_else, else_plot)
- 
-# collect all sums in data.frame 
-data_barplot_wide_intermediate <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                   sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                   sum_park, sum_healthcare,sum_beauty, sum_other, sum_else))
-
-
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_else,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_intermediate) <- c(1:current_wave)
-
-# add place variable as ID
-data_barplot_wide_intermediate$places <- places_plot
-
-# change to long format
-data_barplot_long_intermediate <- melt(setDT(data_barplot_wide_intermediate), id.vars=c("places"), variable.name="wave")
-
-
-# plot
-
-plot_version1_intermediate <- ggplot(data_barplot_long_intermediate, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-             scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","else","entertainment","healthcare","home_else","home_own","other","park","school", 
-  "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave")+
-  ylab("Percentage")+
-  theme(axis.text.x = element_text(angle=90),plot.title = element_text(size=9),legend.position = "none", panel.background = element_blank()) +
-  ggtitle("Intermediate populated areas")
-
-plot_version1_intermediate
- 
-
-```
-
-#####densely
-
-```{r densely populated}
-## plot for densely
-# sums up number of people met in a specific place in a specific wave 
-# this is the rows for our dataframe (row = place, column = wave)
-# create empty vectors for places to store sums in loop, needed for loops 
-sum_home_own <- c()  
-sum_home_else <- c()
-sum_work  <- c()
-sum_worship  <- c()
-sum_transport  <- c()
-sum_school  <- c()
-sum_shop_essential  <- c()
-sum_shop_non_essential  <- c()
-sum_entertainment  <- c()
-sum_sport  <- c()
-sum_park  <- c()
-sum_healthcare  <- c()
-sum_beauty  <- c()
-sum_other  <- c()
-sum_else  <- c()
-
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_hh_group_densely$place_home_own[which(dummy_hh_group_densely$wave==i)])+
-                    sum(dummy_outside_densely$place_home_own[which(dummy_outside_densely$wave==i)]))
- sum_home_own <- cbind(sum_home_own,home_own)
- # home else
- 
- home_else<- rbind(sum(dummy_hh_group_densely$place_home_else[which(dummy_hh_group_densely$wave==i)])+
-                    sum(dummy_outside_densely$place_home_else[which(dummy_outside_densely$wave==i)]))
- sum_home_else <- cbind(sum_home_else,home_else)
- # work (including group contacts)
- 
- work_plot<- rbind(sum(dummy_hh_group_densely$place_home_else[which(dummy_hh_group_densely$wave==i)])+
-                     sum(dummy_outside_densely$place_home_else[which(dummy_outside_densely$wave==i)])+
-                     sum(dummy_hh_group_densely$Q79a_age_met_work_u18[which(dummy_hh_group_densely$wave_0==i)], na.rm = TRUE)+
-                     sum(dummy_hh_group_densely$Q79a_age_met_work_1864[which(dummy_hh_group_densely$wave_0==i)],na.rm= TRUE)+
-                     sum(dummy_hh_group_densely$Q79a_age_met_work_o64[which(dummy_hh_group_densely$wave_0==i)],na.rm=TRUE))
- 
- sum_work <- cbind(sum_work, work_plot)
- 
- # worship
- 
-worship_plot<- rbind(sum(dummy_hh_group_densely$place_worship[which(dummy_hh_group_densely$wave==i)])+
-                     sum(dummy_outside_densely$place_worship[which(dummy_outside_densely$wave==i)]))
- sum_worship <- cbind(sum_worship,worship_plot)
- 
- # transport
- 
- transport_plot<- rbind(sum(dummy_hh_group_densely$place_transport[which(dummy_hh_group_densely$wave==i)])+
-                        sum(dummy_outside_densely$place_transport[which(dummy_outside_densely$wave==i)]))
- sum_transport <- cbind(sum_transport,transport_plot)
- 
- # school
- 
- school_plot<- rbind(sum(dummy_hh_group_densely$place_school[which(dummy_hh_group_densely$wave==i)])+
-                     sum(dummy_outside_densely$place_school[which(dummy_outside_densely$wave==i)])+
-                     sum(dummy_hh_group_densely$Q80a_age_met_uni_u18[which(dummy_hh_group_densely$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_densely$Q80a_age_met_uni_1864[which(dummy_hh_group_densely$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_densely$Q80a_age_met_uni_o64[which(dummy_hh_group_densely$wave_0==i)],na.rm=TRUE))
- 
- sum_school <- cbind(sum_school, school_plot)
- 
- # shop essential
- 
- shop_essential_plot<- rbind(sum(dummy_hh_group_densely$place_shop_essential[which(dummy_hh_group_densely$wave==i)])+
-                        sum(dummy_outside_densely$place_shop_essential[which(dummy_outside_densely$wave==i)]))
- sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
- 
- # shop non essential
- 
- shop_non_essential_plot<- rbind(sum(dummy_hh_group_densely$place_shop_non_essential[which(dummy_hh_group_densely$wave==i)])+
-                        sum(dummy_outside_densely$place_shop_non_essential[which(dummy_outside_densely$wave==i)]))
- sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
- 
- # entertainment
- 
- entertainment_plot<- rbind(sum(dummy_hh_group_densely$place_entertainment[which(dummy_hh_group_densely$wave==i)])+
-                        sum(dummy_outside_densely$place_entertainment[which(dummy_outside_densely$wave==i)]))
- sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
- 
- # sport
- 
- sport_plot<- rbind(sum(dummy_hh_group_densely$place_sport[which(dummy_hh_group_densely$wave==i)])+
-                        sum(dummy_outside_densely$place_sport[which(dummy_outside_densely$wave==i)]))
- sum_sport <- cbind(sum_sport,sport_plot)
- 
-# park
- 
- park_plot<- rbind(sum(dummy_hh_group_densely$place_park[which(dummy_hh_group_densely$wave==i)])+
-                        sum(dummy_outside_densely$place_park[which(dummy_outside_densely$wave==i)]))
- sum_park <- cbind(sum_park,park_plot)
- 
- # healthcare
- 
- healthcare_plot<- rbind(sum(dummy_hh_group_densely$place_healthcare[which(dummy_hh_group_densely$wave==i)])+
-                        sum(dummy_outside_densely$place_healthcare[which(dummy_outside_densely$wave==i)]))
- sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
- 
- # beauty
- 
- beauty_plot<- rbind(sum(dummy_hh_group_densely$place_beauty[which(dummy_hh_group_densely$wave==i)])+
-                        sum(dummy_outside_densely$place_beauty[which(dummy_outside_densely$wave==i)]))
- sum_beauty <- cbind(sum_beauty,beauty_plot)
- 
- # other
- 
- other_plot<- rbind(sum(as.numeric(dummy_hh_group_densely$place_oth[which(dummy_hh_group_densely$wave==i)]),na.rm=TRUE)+
-                        sum(as.numeric(dummy_outside_densely$place_oth[which(dummy_outside_densely$wave==i)]),na.rm=TRUE))
- sum_other <- cbind(sum_other,other_plot)
- 
- # else, group contacts met else, interprets NA as 0
- else_plot<- rbind(sum(dummy_hh_group_densely$Q81a_age_met_else_u18[which(dummy_hh_group_densely$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_densely$Q81a_age_met_else_1864[which(dummy_hh_group_densely$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_densely$Q81a_age_met_else_o64[which(dummy_hh_group_densely$wave==i)],na.rm=TRUE))
- 
- sum_else <- cbind(sum_else, else_plot)
- 
-# collect all sums in data.frame 
-data_barplot_wide_densely <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                   sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                   sum_park, sum_healthcare,sum_beauty, sum_other, sum_else))
-
-
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_else,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_densely) <- c(1:current_wave)
-
-# add place variable as ID
-data_barplot_wide_densely$places <- places_plot
-
-# change to long format
-data_barplot_long_densely <- melt(setDT(data_barplot_wide_densely), id.vars=c("places"), variable.name="wave")
-
-
-# plot
-plot_version1_densely <- ggplot(data_barplot_long_densely, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-             scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","else","entertainment","healthcare","home_else","home_own","other","park","school", 
-  "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave")+
-  ylab("Percentage")+
-  theme(axis.text.x = element_text(angle=90),plot.title = element_text(size=9), legend.position = "none", panel.background = element_blank()) +
-  ggtitle("Densely populated areas")
-
-
-plot_version1_densely 
-
-
-```
-
-#####combine graph
-
-```{r arranging plots version 1 all contact}
-# create mosaicplots and arrange them 
-
-plot_0 <- ggplot(data_barplot_long_densely, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-             scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col ) +
-  guides(fill=guide_legend(title="Places", ncol = 2)) +
-  scale_x_discrete(name="Wave", labels=c("03/3-10/3","31/3-07/4","21/4-28/4","12/5-19/5", 
-                             "02/6-09/6","23/6-30/6","14/7-21/7","04/8-11/8"))+
-  theme(axis.text.x = element_text(angle=90)) 
-
-
-
-legend <- cowplot::get_legend(plot_0)
-
-
-gridExtra::grid.arrange(plot_version1_densely, plot_version1_intermediate, 
-             plot_version1_thinly, legend,
-             ncol=2)
-
-
-```
-
-
-
-
-### Version 2: non household contact without group contacts
-####No stratification
-
-```{r thinly non household contacts}
-
-sum_home_own <- c()  
-sum_home_else <- c()
-sum_work  <- c()
-sum_worship  <- c()
-sum_transport  <- c()
-sum_school  <- c()
-sum_shop_essential  <- c()
-sum_shop_non_essential  <- c()
-sum_entertainment  <- c()
-sum_sport  <- c()
-sum_park  <- c()
-sum_healthcare  <- c()
-sum_beauty  <- c()
-sum_other  <- c()
-
-## plot for thinly
-# sums up number of people met in a specific place in a specific wave 
-# this is the rows for our dataframe (row = place, column = wave)
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_outside$place_home_own[which(dummy_outside$wave==i)]))
-  sum_home_own <- cbind(sum_home_own,home_own)
-  # home else
-  
-  home_else<- rbind(sum(dummy_outside$place_home_else[which(dummy_outside$wave==i)]))
-  sum_home_else <- cbind(sum_home_else,home_else)
-  # work (including group contacts)
-  
-  work_plot<- rbind(sum(dummy_outside$place_home_else[which(dummy_outside$wave==i)]))
-  
-  sum_work <- cbind(sum_work, work_plot)
-  
-  # worship
-  
-  worship_plot<- rbind(sum(dummy_outside$place_worship[which(dummy_outside$wave==i)]))
-  sum_worship <- cbind(sum_worship,worship_plot)
-  
-  # transport
-  
-  transport_plot<- rbind(sum(dummy_outside$place_transport[which(dummy_outside$wave==i)]))
-  sum_transport <- cbind(sum_transport,transport_plot)
-  
-  # school
-  
-  school_plot<- rbind(sum(dummy_outside$place_school[which(dummy_outside$wave==i)]))
-  
-  sum_school <- cbind(sum_school, school_plot)
-  
-  # shop essential
-  
-  shop_essential_plot<- rbind(sum(dummy_outside$place_shop_essential[which(dummy_outside$wave==i)]))
-  sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
-  
-  # shop non essential
-  
-  shop_non_essential_plot<- rbind(sum(dummy_outside$place_shop_non_essential[which(dummy_outside$wave==i)]))
-  sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
-  
-  # entertainment
-  
-  entertainment_plot<- rbind(sum(dummy_outside$place_entertainment[which(dummy_outside$wave==i)]))
-  sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
-  
-  # sport
-  
-  sport_plot<- rbind(sum(dummy_outside$place_sport[which(dummy_outside$wave==i)]))
-  sum_sport <- cbind(sum_sport,sport_plot)
-  
-  # park
-  
-  park_plot<- rbind(sum(dummy_outside$place_park[which(dummy_outside$wave==i)]))
-  sum_park <- cbind(sum_park,park_plot)
-  
-  # healthcare
-  
-  healthcare_plot<- rbind(sum(dummy_outside$place_healthcare[which(dummy_outside$wave==i)]))
-  sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
-  
-  # beauty
-  
-  beauty_plot<- rbind(sum(dummy_outside$place_beauty[which(dummy_outside$wave==i)]))
-  sum_beauty <- cbind(sum_beauty,beauty_plot)
-  
-  # other
-  
-  other_plot<- rbind(sum(as.numeric(dummy_outside$place_oth[which(dummy_outside$wave==i)]),na.rm=TRUE))
-  sum_other <- cbind(sum_other,other_plot)
-  
- 
-  
-  # collect all sums in data.frame 
-  data_barplot_wide_thinly <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                                                  sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                                                  sum_park, sum_healthcare,sum_beauty, sum_other))
-  
-  
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_thinly) <- c(1:current_wave)
-
-# add place variable as ID
-places_plot <- c(places)
-data_barplot_wide_thinly$places <- places_plot
-
-# change to long format
-data_barplot_long_thinly <- melt(setDT(data_barplot_wide_thinly), 
-                                 id.vars=c("places"), variable.name="wave")
-
-
-# plot
-#col1 <- brewer.pal(8, "RdYlBu") 
-#col2 <- brewer.pal(6,"PiYG")
-#col <- cbind(col1,col2)
-plot_version2_thinly_outside <- ggplot(data_barplot_long_thinly, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-  scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","entertainment","healthcare","home_else","home_own","other","park","school", 
-                                                                                               "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave")+
-  theme(axis.text.x = element_text(angle=90),
-        # legend.position = "none",
-        plot.title = element_text(size=9)) +
-  ggtitle("non household contact without group contacts")
-
-plot_version2_thinly_outside
-
-
-```
-
-####Density stratification
-#####thinly
-
-```{r thinly non household contacts}
-
-sum_home_own <- c()  
-sum_home_else <- c()
-sum_work  <- c()
-sum_worship  <- c()
-sum_transport  <- c()
-sum_school  <- c()
-sum_shop_essential  <- c()
-sum_shop_non_essential  <- c()
-sum_entertainment  <- c()
-sum_sport  <- c()
-sum_park  <- c()
-sum_healthcare  <- c()
-sum_beauty  <- c()
-sum_other  <- c()
-
-## plot for thinly
-# sums up number of people met in a specific place in a specific wave 
-# this is the rows for our dataframe (row = place, column = wave)
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_outside_thinly$place_home_own[which(dummy_outside_thinly$wave==i)]))
-  sum_home_own <- cbind(sum_home_own,home_own)
-  # home else
-  
-  home_else<- rbind(sum(dummy_outside_thinly$place_home_else[which(dummy_outside_thinly$wave==i)]))
-  sum_home_else <- cbind(sum_home_else,home_else)
-  # work (including group contacts)
-  
-  work_plot<- rbind(sum(dummy_outside_thinly$place_home_else[which(dummy_outside_thinly$wave==i)]))
-  
-  sum_work <- cbind(sum_work, work_plot)
-  
-  # worship
-  
-  worship_plot<- rbind(sum(dummy_outside_thinly$place_worship[which(dummy_outside_thinly$wave==i)]))
-  sum_worship <- cbind(sum_worship,worship_plot)
-  
-  # transport
-  
-  transport_plot<- rbind(sum(dummy_outside_thinly$place_transport[which(dummy_outside_thinly$wave==i)]))
-  sum_transport <- cbind(sum_transport,transport_plot)
-  
-  # school
-  
-  school_plot<- rbind(sum(dummy_outside_thinly$place_school[which(dummy_outside_thinly$wave==i)]))
-  
-  sum_school <- cbind(sum_school, school_plot)
-  
-  # shop essential
-  
-  shop_essential_plot<- rbind(sum(dummy_outside_thinly$place_shop_essential[which(dummy_outside_thinly$wave==i)]))
-  sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
-  
-  # shop non essential
-  
-  shop_non_essential_plot<- rbind(sum(dummy_outside_thinly$place_shop_non_essential[which(dummy_outside_thinly$wave==i)]))
-  sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
-  
-  # entertainment
-  
-  entertainment_plot<- rbind(sum(dummy_outside_thinly$place_entertainment[which(dummy_outside_thinly$wave==i)]))
-  sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
-  
-  # sport
-  
-  sport_plot<- rbind(sum(dummy_outside_thinly$place_sport[which(dummy_outside_thinly$wave==i)]))
-  sum_sport <- cbind(sum_sport,sport_plot)
-  
-  # park
-  
-  park_plot<- rbind(sum(dummy_outside_thinly$place_park[which(dummy_outside_thinly$wave==i)]))
-  sum_park <- cbind(sum_park,park_plot)
-  
-  # healthcare
-  
-  healthcare_plot<- rbind(sum(dummy_outside_thinly$place_healthcare[which(dummy_outside_thinly$wave==i)]))
-  sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
-  
-  # beauty
-  
-  beauty_plot<- rbind(sum(dummy_outside_thinly$place_beauty[which(dummy_outside_thinly$wave==i)]))
-  sum_beauty <- cbind(sum_beauty,beauty_plot)
-  
-  # other
-  
-  other_plot<- rbind(sum(as.numeric(dummy_outside_thinly$place_oth[which(dummy_outside_thinly$wave==i)]),na.rm=TRUE))
-  sum_other <- cbind(sum_other,other_plot)
-  
- 
-  
-  # collect all sums in data.frame 
-  data_barplot_wide_thinly <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                                                  sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                                                  sum_park, sum_healthcare,sum_beauty, sum_other))
-  
-  
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_thinly) <- c(1:current_wave)
-
-# add place variable as ID
-places_plot <- c(places)
-data_barplot_wide_thinly$places <- places_plot
-
-# change to long format
-data_barplot_long_thinly <- melt(setDT(data_barplot_wide_thinly), 
-                                 id.vars=c("places"), variable.name="wave")
-
-
-# plot
-#col1 <- brewer.pal(8, "RdYlBu") 
-#col2 <- brewer.pal(6,"PiYG")
-#col <- cbind(col1,col2)
-plot_version2_thinly_outside <- ggplot(data_barplot_long_thinly, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-  scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","entertainment","healthcare","home_else","home_own","other","park","school", 
-                                                                                               "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave")+
-  theme(axis.text.x = element_text(angle=90),plot.title = element_text(size=9),legend.position = "none") +
-  ggtitle("Thinly populated areas")
-
-plot_version2_thinly_outside
-
-
-```
-
-#####intermediate
-
-```{r intermediate - non-household contacts}
-
-sum_home_own <- c()  
-sum_home_else <- c()
-sum_work  <- c()
-sum_worship  <- c()
-sum_transport  <- c()
-sum_school  <- c()
-sum_shop_essential  <- c()
-sum_shop_non_essential  <- c()
-sum_entertainment  <- c()
-sum_sport  <- c()
-sum_park  <- c()
-sum_healthcare  <- c()
-sum_beauty  <- c()
-sum_other  <- c()
-
-## plot for intermediate
-# sums up number of people met in a specific place in a specific wave 
-# this is the rows for our dataframe (row = place, column = wave)
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_outside_intermediate$place_home_own[which(dummy_outside_intermediate$wave==i)]))
-  sum_home_own <- cbind(sum_home_own,home_own)
-  # home else
-  
-  home_else<- rbind(sum(dummy_outside_intermediate$place_home_else[which(dummy_outside_intermediate$wave==i)]))
-  sum_home_else <- cbind(sum_home_else,home_else)
-  # work (including group contacts)
-  
-  work_plot<- rbind(sum(dummy_outside_intermediate$place_home_else[which(dummy_outside_intermediate$wave==i)]))
-  
-  sum_work <- cbind(sum_work, work_plot)
-  
-  # worship
-  
-  worship_plot<- rbind(sum(dummy_outside_intermediate$place_worship[which(dummy_outside_intermediate$wave==i)]))
-  sum_worship <- cbind(sum_worship,worship_plot)
-  
-  # transport
-  
-  transport_plot<- rbind(sum(dummy_outside_intermediate$place_transport[which(dummy_outside_intermediate$wave==i)]))
-  sum_transport <- cbind(sum_transport,transport_plot)
-  
-  # school
-  
-  school_plot<- rbind(sum(dummy_outside_intermediate$place_school[which(dummy_outside_intermediate$wave==i)]))
-  
-  sum_school <- cbind(sum_school, school_plot)
-  
-  # shop essential
-  
-  shop_essential_plot<- rbind(sum(dummy_outside_intermediate$place_shop_essential[which(dummy_outside_intermediate$wave==i)]))
-  sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
-  
-  # shop non essential
-  
-  shop_non_essential_plot<- rbind(sum(dummy_outside_intermediate$place_shop_non_essential[which(dummy_outside_intermediate$wave==i)]))
-  sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
-  
-  # entertainment
-  
-  entertainment_plot<- rbind(sum(dummy_outside_intermediate$place_entertainment[which(dummy_outside_intermediate$wave==i)]))
-  sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
-  
-  # sport
-  
-  sport_plot<- rbind(sum(dummy_outside_intermediate$place_sport[which(dummy_outside_intermediate$wave==i)]))
-  sum_sport <- cbind(sum_sport,sport_plot)
-  
-  # park
-  
-  park_plot<- rbind(sum(dummy_outside_intermediate$place_park[which(dummy_outside_intermediate$wave==i)]))
-  sum_park <- cbind(sum_park,park_plot)
-  
-  # healthcare
-  
-  healthcare_plot<- rbind(sum(dummy_outside_intermediate$place_healthcare[which(dummy_outside_intermediate$wave==i)]))
-  sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
-  
-  # beauty
-  
-  beauty_plot<- rbind(sum(dummy_outside_intermediate$place_beauty[which(dummy_outside_intermediate$wave==i)]))
-  sum_beauty <- cbind(sum_beauty,beauty_plot)
-  
-  # other
-  
-  other_plot<- rbind(sum(as.numeric(dummy_outside_intermediate$place_oth[which(dummy_outside_intermediate$wave==i)]),na.rm=TRUE))
-  sum_other <- cbind(sum_other,other_plot)
-  
- 
-  
-  # collect all sums in data.frame 
-  data_barplot_wide_intermediate <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                                                  sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                                                  sum_park, sum_healthcare,sum_beauty, sum_other))
-  
-  
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_intermediate) <- c(1:current_wave)
-
-# add place variable as ID
-places_plot <- c(places)
-data_barplot_wide_intermediate$places <- places_plot
-
-# change to long format
-data_barplot_long_intermediate <- melt(setDT(data_barplot_wide_intermediate), 
-                                 id.vars=c("places"), variable.name="wave")
-
-
-# plot
-plot_version2_intermediate_outside <- ggplot(data_barplot_long_intermediate, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-  scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","entertainment","healthcare","home_else","home_own","other","park","school", 
-                                                                                               "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave")+
-  theme(axis.text.x = element_text(angle=90),plot.title = element_text(size=9),legend.position = "none", panel.background = element_blank()) +
-  ggtitle("Intermediate populated areas")
-
-plot_version2_intermediate_outside
-
-```
-
-#####densely
-
-```{r densely - non-household contacts}
-
-sum_home_own <- c()  
-sum_home_else <- c()
-sum_work  <- c()
-sum_worship  <- c()
-sum_transport  <- c()
-sum_school  <- c()
-sum_shop_essential  <- c()
-sum_shop_non_essential  <- c()
-sum_entertainment  <- c()
-sum_sport  <- c()
-sum_park  <- c()
-sum_healthcare  <- c()
-sum_beauty  <- c()
-sum_other  <- c()
-
-## plot for densely
-# sums up number of people met in a specific place in a specific wave 
-# this is the rows for our dataframe (row = place, column = wave)
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_outside_densely$place_home_own[which(dummy_outside_densely$wave==i)]))
-  sum_home_own <- cbind(sum_home_own,home_own)
-  # home else
-  
-  home_else<- rbind(sum(dummy_outside_densely$place_home_else[which(dummy_outside_densely$wave==i)]))
-  sum_home_else <- cbind(sum_home_else,home_else)
-  # work (including group contacts)
-  
-  work_plot<- rbind(sum(dummy_outside_densely$place_home_else[which(dummy_outside_densely$wave==i)]))
-  
-  sum_work <- cbind(sum_work, work_plot)
-  
-  # worship
-  
-  worship_plot<- rbind(sum(dummy_outside_densely$place_worship[which(dummy_outside_densely$wave==i)]))
-  sum_worship <- cbind(sum_worship,worship_plot)
-  
-  # transport
-  
-  transport_plot<- rbind(sum(dummy_outside_densely$place_transport[which(dummy_outside_densely$wave==i)]))
-  sum_transport <- cbind(sum_transport,transport_plot)
-  
-  # school
-  
-  school_plot<- rbind(sum(dummy_outside_densely$place_school[which(dummy_outside_densely$wave==i)]))
-  
-  sum_school <- cbind(sum_school, school_plot)
-  
-  # shop essential
-  
-  shop_essential_plot<- rbind(sum(dummy_outside_densely$place_shop_essential[which(dummy_outside_densely$wave==i)]))
-  sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
-  
-  # shop non essential
-  
-  shop_non_essential_plot<- rbind(sum(dummy_outside_densely$place_shop_non_essential[which(dummy_outside_densely$wave==i)]))
-  sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
-  
-  # entertainment
-  
-  entertainment_plot<- rbind(sum(dummy_outside_densely$place_entertainment[which(dummy_outside_densely$wave==i)]))
-  sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
-  
-  # sport
-  
-  sport_plot<- rbind(sum(dummy_outside_densely$place_sport[which(dummy_outside_densely$wave==i)]))
-  sum_sport <- cbind(sum_sport,sport_plot)
-  
-  # park
-  
-  park_plot<- rbind(sum(dummy_outside_densely$place_park[which(dummy_outside_densely$wave==i)]))
-  sum_park <- cbind(sum_park,park_plot)
-  
-  # healthcare
-  
-  healthcare_plot<- rbind(sum(dummy_outside_densely$place_healthcare[which(dummy_outside_densely$wave==i)]))
-  sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
-  
-  # beauty
-  
-  beauty_plot<- rbind(sum(dummy_outside_densely$place_beauty[which(dummy_outside_densely$wave==i)]))
-  sum_beauty <- cbind(sum_beauty,beauty_plot)
-  
-  # other
-  
-  other_plot<- rbind(sum(as.numeric(dummy_outside_densely$place_oth[which(dummy_outside_densely$wave==i)]),na.rm=TRUE))
-  sum_other <- cbind(sum_other,other_plot)
-  
- 
-  
-  # collect all sums in data.frame 
-  data_barplot_wide_densely <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                                                  sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                                                  sum_park, sum_healthcare,sum_beauty, sum_other))
-  
-  
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_densely) <- c(1:current_wave)
-
-# add place variable as ID
-places_plot <- c(places)
-data_barplot_wide_densely$places <- places_plot
-
-# change to long format
-data_barplot_long_densely <- melt(setDT(data_barplot_wide_densely), 
-                                 id.vars=c("places"), variable.name="wave")
-
-
-# plot
-plot_version2_densely_outside <- ggplot(data_barplot_long_densely, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-  scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","entertainment","healthcare","home_else","home_own","other","park","school", 
-                                                                                               "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave")+
-  theme(axis.text.x = element_text(angle=90),plot.title = element_text(size=9),legend.position = "none",panel.background = element_blank()) +
-  ggtitle("Densely populated areas")
-
-plot_version2_densely_outside
-
-
-```
-
-#####combine graph
-
-```{r arrange plots version 2 non-household contacts}
-
-# create mosaicplots and arrange them 
-
-plot_0 <- ggplot(data_barplot_long_densely, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-             scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col #,labels=c("beauty","entertainment","healthcare","home_else","home_own","other","park","school", 
-#  "shop essential","shop non essential","sport","transport","work","worship")
-) +
-  guides(fill=guide_legend(title="Places", ncol = 2)) +
-  scale_x_discrete(name="Wave")+
-  theme(axis.text.x = element_text(angle=90)) 
-
-
-
-legend_version2_outside <- cowplot::get_legend(plot_0)
-
-
-gridExtra::grid.arrange(plot_version2_densely_outside, plot_version2_intermediate_outside, 
-             plot_version2_thinly_outside, legend_version2_outside,
-             ncol=2,top = "Non-household contact without group contacts")
-
-```
-
-### Version 3: non household contacts with group contacts
-#### No stratification
-
-```{r Version 3 thinly populated}
-## plot for thinly
-
-sum_home_own <- c()  
-sum_home_else <- c()
-sum_work  <- c()
-sum_worship  <- c()
-sum_transport  <- c()
-sum_school  <- c()
-sum_shop_essential  <- c()
-sum_shop_non_essential  <- c()
-sum_entertainment  <- c()
-sum_sport  <- c()
-sum_park  <- c()
-sum_healthcare  <- c()
-sum_beauty  <- c()
-sum_other  <- c()
-sum_else <- c()
-# sums up number of people met in a specific place in a specific wave 
-# this is the rows for our dataframe (row = place, column = wave)
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_outside$place_home_own[which(dummy_outside$wave==i)]))
- sum_home_own <- cbind(sum_home_own,home_own)
- # home else
- 
- home_else<- rbind(sum(dummy_outside$place_home_else[which(dummy_outside$wave==i)]))
- sum_home_else <- cbind(sum_home_else,home_else)
- # work (including group contacts)
- 
- work_plot<- rbind(sum(dummy_outside$place_home_else[which(dummy_outside$wave==i)])+
-                     sum(dummy_hh_group_thinly$Q79a_age_met_work_u18[which(dummy_hh_group_thinly$wave_0==i)], na.rm = TRUE)+
-                     sum(dummy_hh_group_thinly$Q79a_age_met_work_1864[which(dummy_hh_group_thinly$wave_0==i)],na.rm= TRUE)+
-                     sum(dummy_hh_group_thinly$Q79a_age_met_work_o64[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE))
- 
- sum_work <- cbind(sum_work, work_plot)
- 
- # worship
- 
-worship_plot<- rbind(sum(dummy_outside$place_worship[which(dummy_outside$wave==i)]))
- sum_worship <- cbind(sum_worship,worship_plot)
- 
- # transport
- 
- transport_plot<- rbind(sum(dummy_outside$place_transport[which(dummy_outside$wave==i)]))
- sum_transport <- cbind(sum_transport,transport_plot)
- 
- # school
- 
- school_plot<- rbind(sum(dummy_outside$place_school[which(dummy_outside$wave==i)])+
-                     sum(dummy_hh_group_thinly$Q80a_age_met_uni_u18[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q80a_age_met_uni_1864[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q80a_age_met_uni_o64[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE))
- 
- sum_school <- cbind(sum_school, school_plot)
- 
- # shop essential
- 
- shop_essential_plot<- rbind(sum(dummy_outside$place_shop_essential[which(dummy_outside$wave==i)]))
- sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
- 
- # shop non essential
- 
- shop_non_essential_plot<- rbind(sum(dummy_outside$place_shop_non_essential[which(dummy_outside$wave==i)]))
- sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
- 
- # entertainment
- 
- entertainment_plot<- rbind(sum(dummy_outside$place_entertainment[which(dummy_outside$wave==i)]))
- sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
- 
- # sport
- 
- sport_plot<- rbind(sum(dummy_outside$place_sport[which(dummy_outside$wave==i)]))
- sum_sport <- cbind(sum_sport,sport_plot)
- 
-# park
- 
- park_plot<- rbind(sum(dummy_outside$place_park[which(dummy_outside$wave==i)]))
- sum_park <- cbind(sum_park,park_plot)
- 
- # healthcare
- 
- healthcare_plot<- rbind(sum(dummy_outside$place_healthcare[which(dummy_outside$wave==i)]))
- sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
- 
- # beauty
- 
- beauty_plot<- rbind(sum(dummy_outside$place_beauty[which(dummy_outside$wave==i)]))
- sum_beauty <- cbind(sum_beauty,beauty_plot)
- 
- # other
- 
- other_plot<- rbind(sum(as.numeric(dummy_outside$place_oth[which(dummy_outside$wave==i)]),na.rm=TRUE))
- sum_other <- cbind(sum_other,other_plot)
- 
- # else, group contacts met else, interprets NA as 0
- else_plot<- rbind(sum(dummy_hh_group_thinly$Q81a_age_met_else_u18[which(dummy_hh_group_thinly$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q81a_age_met_else_1864[which(dummy_hh_group_thinly$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q81a_age_met_else_o64[which(dummy_hh_group_thinly$wave==i)],na.rm=TRUE))
- 
- sum_else <- cbind(sum_else, else_plot)
- 
-# collect all sums in data.frame 
-data_barplot_wide_thinly <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                   sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                   sum_park, sum_healthcare,sum_beauty, sum_other, sum_else))
-
-
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_else,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_thinly) <- c(1:current_wave)
-
-# add place variable as ID
-places_plot <- c(places, "place_else")
-data_barplot_wide_thinly$places <- places_plot
-
-# change to long format
-data_barplot_long_thinly <- melt(setDT(data_barplot_wide_thinly), 
-                                 id.vars=c("places"), variable.name="wave")
-
-
-# plot
-col1 <- brewer.pal(8, "Dark2") 
-col2 <- brewer.pal(7,"Pastel2")
-col <- cbind(col1,col2)
-plot_version3_thinly <- ggplot(data_barplot_long_thinly, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-             scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","else","entertainment","healthcare","home_else","home_own","other","park","school", 
-  "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave")+
-  ylab("Percentage")+
-  theme(axis.text.x = element_text(angle=90),plot.title = element_text(size=9),
-        # legend.position = "none",
-        panel.background = element_blank()) +
-  ggtitle("Non-household contacts with group contactss")
- 
-
-plot_version3_thinly
-
-```
-
-####Density stratification
-#####thinly
-
-```{r Version 3 thinly populated}
-## plot for thinly
-
-sum_home_own <- c()  
-sum_home_else <- c()
-sum_work  <- c()
-sum_worship  <- c()
-sum_transport  <- c()
-sum_school  <- c()
-sum_shop_essential  <- c()
-sum_shop_non_essential  <- c()
-sum_entertainment  <- c()
-sum_sport  <- c()
-sum_park  <- c()
-sum_healthcare  <- c()
-sum_beauty  <- c()
-sum_other  <- c()
-sum_else <- c()
-# sums up number of people met in a specific place in a specific wave 
-# this is the rows for our dataframe (row = place, column = wave)
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_outside_thinly$place_home_own[which(dummy_outside_thinly$wave==i)]))
- sum_home_own <- cbind(sum_home_own,home_own)
- # home else
- 
- home_else<- rbind(sum(dummy_outside_thinly$place_home_else[which(dummy_outside_thinly$wave==i)]))
- sum_home_else <- cbind(sum_home_else,home_else)
- # work (including group contacts)
- 
- work_plot<- rbind(sum(dummy_outside_thinly$place_home_else[which(dummy_outside_thinly$wave==i)])+
-                     sum(dummy_hh_group_thinly$Q79a_age_met_work_u18[which(dummy_hh_group_thinly$wave_0==i)], na.rm = TRUE)+
-                     sum(dummy_hh_group_thinly$Q79a_age_met_work_1864[which(dummy_hh_group_thinly$wave_0==i)],na.rm= TRUE)+
-                     sum(dummy_hh_group_thinly$Q79a_age_met_work_o64[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE))
- 
- sum_work <- cbind(sum_work, work_plot)
- 
- # worship
- 
-worship_plot<- rbind(sum(dummy_outside_thinly$place_worship[which(dummy_outside_thinly$wave==i)]))
- sum_worship <- cbind(sum_worship,worship_plot)
- 
- # transport
- 
- transport_plot<- rbind(sum(dummy_outside_thinly$place_transport[which(dummy_outside_thinly$wave==i)]))
- sum_transport <- cbind(sum_transport,transport_plot)
- 
- # school
- 
- school_plot<- rbind(sum(dummy_outside_thinly$place_school[which(dummy_outside_thinly$wave==i)])+
-                     sum(dummy_hh_group_thinly$Q80a_age_met_uni_u18[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q80a_age_met_uni_1864[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q80a_age_met_uni_o64[which(dummy_hh_group_thinly$wave_0==i)],na.rm=TRUE))
- 
- sum_school <- cbind(sum_school, school_plot)
- 
- # shop essential
- 
- shop_essential_plot<- rbind(sum(dummy_outside_thinly$place_shop_essential[which(dummy_outside_thinly$wave==i)]))
- sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
- 
- # shop non essential
- 
- shop_non_essential_plot<- rbind(sum(dummy_outside_thinly$place_shop_non_essential[which(dummy_outside_thinly$wave==i)]))
- sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
- 
- # entertainment
- 
- entertainment_plot<- rbind(sum(dummy_outside_thinly$place_entertainment[which(dummy_outside_thinly$wave==i)]))
- sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
- 
- # sport
- 
- sport_plot<- rbind(sum(dummy_outside_thinly$place_sport[which(dummy_outside_thinly$wave==i)]))
- sum_sport <- cbind(sum_sport,sport_plot)
- 
-# park
- 
- park_plot<- rbind(sum(dummy_outside_thinly$place_park[which(dummy_outside_thinly$wave==i)]))
- sum_park <- cbind(sum_park,park_plot)
- 
- # healthcare
- 
- healthcare_plot<- rbind(sum(dummy_outside_thinly$place_healthcare[which(dummy_outside_thinly$wave==i)]))
- sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
- 
- # beauty
- 
- beauty_plot<- rbind(sum(dummy_outside_thinly$place_beauty[which(dummy_outside_thinly$wave==i)]))
- sum_beauty <- cbind(sum_beauty,beauty_plot)
- 
- # other
- 
- other_plot<- rbind(sum(as.numeric(dummy_outside_thinly$place_oth[which(dummy_outside_thinly$wave==i)]),na.rm=TRUE))
- sum_other <- cbind(sum_other,other_plot)
- 
- # else, group contacts met else, interprets NA as 0
- else_plot<- rbind(sum(dummy_hh_group_thinly$Q81a_age_met_else_u18[which(dummy_hh_group_thinly$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q81a_age_met_else_1864[which(dummy_hh_group_thinly$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_thinly$Q81a_age_met_else_o64[which(dummy_hh_group_thinly$wave==i)],na.rm=TRUE))
- 
- sum_else <- cbind(sum_else, else_plot)
- 
-# collect all sums in data.frame 
-data_barplot_wide_thinly <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                   sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                   sum_park, sum_healthcare,sum_beauty, sum_other, sum_else))
-
-
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_else,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_thinly) <- c(1:current_wave)
-
-# add place variable as ID
-places_plot <- c(places, "place_else")
-data_barplot_wide_thinly$places <- places_plot
-
-# change to long format
-data_barplot_long_thinly <- melt(setDT(data_barplot_wide_thinly), 
-                                 id.vars=c("places"), variable.name="wave")
-
-
-# plot
-col1 <- brewer.pal(8, "Dark2") 
-col2 <- brewer.pal(7,"Pastel2")
-col <- cbind(col1,col2)
-plot_version3_thinly <- ggplot(data_barplot_long_thinly, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-             scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","else","entertainment","healthcare","home_else","home_own","other","park","school", 
-  "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave")+
-  ylab("Percentage")+
-  theme(axis.text.x = element_text(angle=90),plot.title = element_text(size=9),legend.position = "none",panel.background = element_blank()) +
-  ggtitle("Thinly populated areas")
- 
-
-plot_version3_thinly
-
-```
-
-#####intermediate
-
-```{r intermediate }
-## plot for intermediate
-# create empty vectors for places to store sums in loop, needed for loops 
-sum_home_own <- c()  
-sum_home_else <- c()
-sum_work  <- c()
-sum_worship  <- c()
-sum_transport  <- c()
-sum_school  <- c()
-sum_shop_essential  <- c()
-sum_shop_non_essential  <- c()
-sum_entertainment  <- c()
-sum_sport  <- c()
-sum_park  <- c()
-sum_healthcare  <- c()
-sum_beauty  <- c()
-sum_other  <- c()
-sum_else  <- c()
-
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_outside_intermediate$place_home_own[which(dummy_outside_intermediate$wave==i)]))
- sum_home_own <- cbind(sum_home_own,home_own)
- # home else
- 
- home_else<- rbind(sum(dummy_outside_intermediate$place_home_else[which(dummy_outside_intermediate$wave==i)]))
- sum_home_else <- cbind(sum_home_else,home_else)
- # work (including group contacts)
- 
- work_plot<- rbind(sum(dummy_outside_intermediate$place_home_else[which(dummy_outside_intermediate$wave==i)])+
-                     sum(dummy_hh_group_intermediate$Q79a_age_met_work_u18[which(dummy_hh_group_intermediate$wave_0==i)], na.rm = TRUE)+
-                     sum(dummy_hh_group_intermediate$Q79a_age_met_work_1864[which(dummy_hh_group_intermediate$wave_0==i)],na.rm= TRUE)+
-                     sum(dummy_hh_group_intermediate$Q79a_age_met_work_o64[which(dummy_hh_group_intermediate$wave_0==i)],na.rm=TRUE))
- 
- sum_work <- cbind(sum_work, work_plot)
- 
- # worship
- 
-worship_plot<- rbind(sum(dummy_outside_intermediate$place_worship[which(dummy_outside_intermediate$wave==i)]))
- sum_worship <- cbind(sum_worship,worship_plot)
- 
- # transport
- 
- transport_plot<- rbind(sum(dummy_outside_intermediate$place_transport[which(dummy_outside_intermediate$wave==i)]))
- sum_transport <- cbind(sum_transport,transport_plot)
- 
- # school
- 
- school_plot<- rbind(sum(dummy_outside_intermediate$place_school[which(dummy_outside_intermediate$wave==i)])+
-                     sum(dummy_hh_group_intermediate$Q80a_age_met_uni_u18[which(dummy_hh_group_intermediate$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_intermediate$Q80a_age_met_uni_1864[which(dummy_hh_group_intermediate$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_intermediate$Q80a_age_met_uni_o64[which(dummy_hh_group_intermediate$wave_0==i)],na.rm=TRUE))
- 
- sum_school <- cbind(sum_school, school_plot)
- 
- # shop essential
- 
- shop_essential_plot<- rbind(sum(dummy_outside_intermediate$place_shop_essential[which(dummy_outside_intermediate$wave==i)]))
- sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
- 
- # shop non essential
- 
- shop_non_essential_plot<- rbind(sum(dummy_outside_intermediate$place_shop_non_essential[which(dummy_outside_intermediate$wave==i)]))
- sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
- 
- # entertainment
- 
- entertainment_plot<- rbind(sum(dummy_outside_intermediate$place_entertainment[which(dummy_outside_intermediate$wave==i)]))
- sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
- 
- # sport
- 
- sport_plot<- rbind(sum(dummy_outside_intermediate$place_sport[which(dummy_outside_intermediate$wave==i)]))
- sum_sport <- cbind(sum_sport,sport_plot)
- 
-# park
- 
- park_plot<- rbind(sum(dummy_outside_intermediate$place_park[which(dummy_outside_intermediate$wave==i)]))
- sum_park <- cbind(sum_park,park_plot)
- 
- # healthcare
- 
- healthcare_plot<- rbind(sum(dummy_outside_intermediate$place_healthcare[which(dummy_outside_intermediate$wave==i)]))
- sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
- 
- # beauty
- 
- beauty_plot<- rbind(sum(dummy_outside_intermediate$place_beauty[which(dummy_outside_intermediate$wave==i)]))
- sum_beauty <- cbind(sum_beauty,beauty_plot)
- 
- # other
- 
- other_plot<- rbind(sum(as.numeric(dummy_outside_intermediate$place_oth[which(dummy_outside_intermediate$wave==i)]),na.rm=TRUE))
- sum_other <- cbind(sum_other,other_plot)
- 
- # else, group contacts met else, interprets NA as 0
- else_plot<- rbind(sum(dummy_hh_group_intermediate$Q81a_age_met_else_u18[which(dummy_hh_group_intermediate$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_intermediate$Q81a_age_met_else_1864[which(dummy_hh_group_intermediate$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_intermediate$Q81a_age_met_else_o64[which(dummy_hh_group_intermediate$wave==i)],na.rm=TRUE))
- 
- sum_else <- cbind(sum_else, else_plot)
- 
-# collect all sums in data.frame 
-data_barplot_wide_intermediate <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                   sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                   sum_park, sum_healthcare,sum_beauty, sum_other, sum_else))
-
-
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_else,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_intermediate) <- c(1:current_wave)
-
-# add place variable as ID
-data_barplot_wide_intermediate$places <- places_plot
-
-# change to long format
-data_barplot_long_intermediate <- melt(setDT(data_barplot_wide_intermediate), 
-                                 id.vars=c("places"), variable.name="wave")
-
-
-# plot
-plot_version3_intermediate <- ggplot(data_barplot_long_intermediate, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-             scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","else","entertainment","healthcare","home_else","home_own","other","park","school", 
-  "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave", labels=c("03/3-10/3","31/3-07/4","21/4-28/4","12/5-19/5", 
-                             "02/6-09/6","23/6-30/6","14/7-21/7","04/8-11/8"))+
-  ylab("Percentage")+
-  theme(axis.text.x = element_text(angle=90),plot.title = element_text(size=9),legend.position = "none",panel.background = element_blank()) +
-  ggtitle("Intermediate populated areas")
-
-plot_version3_intermediate
- 
-
-```
-
-#####densely
-
-```{r densely populated}
-## plot for densely
-# create empty vectors for places to store sums in loop, needed for loops 
-sum_home_own <- c()  
-sum_home_else <- c()
-sum_work  <- c()
-sum_worship  <- c()
-sum_transport  <- c()
-sum_school  <- c()
-sum_shop_essential  <- c()
-sum_shop_non_essential  <- c()
-sum_entertainment  <- c()
-sum_sport  <- c()
-sum_park  <- c()
-sum_healthcare  <- c()
-sum_beauty  <- c()
-sum_other  <- c()
-sum_else  <- c()
-
-for(i in c(1:current_wave)){
-  # summing number of people met for each place in a specific wave
-  # home own
-  home_own<- rbind(sum(dummy_outside_densely$place_home_own[which(dummy_outside_densely$wave==i)]))
- sum_home_own <- cbind(sum_home_own,home_own)
- # home else
- 
- home_else<- rbind(sum(dummy_outside_densely$place_home_else[which(dummy_outside_densely$wave==i)]))
- sum_home_else <- cbind(sum_home_else,home_else)
- # work (including group contacts)
- 
- work_plot<- rbind(sum(dummy_outside_densely$place_home_else[which(dummy_outside_densely$wave==i)])+
-                     sum(dummy_hh_group_densely$Q79a_age_met_work_u18[which(dummy_hh_group_densely$wave_0==i)], na.rm = TRUE)+
-                     sum(dummy_hh_group_densely$Q79a_age_met_work_1864[which(dummy_hh_group_densely$wave_0==i)],na.rm= TRUE)+
-                     sum(dummy_hh_group_densely$Q79a_age_met_work_o64[which(dummy_hh_group_densely$wave_0==i)],na.rm=TRUE))
- 
- sum_work <- cbind(sum_work, work_plot)
- 
- # worship
- 
-worship_plot<- rbind(sum(dummy_outside_densely$place_worship[which(dummy_outside_densely$wave==i)]))
- sum_worship <- cbind(sum_worship,worship_plot)
- 
- # transport
- 
- transport_plot<- rbind(sum(dummy_outside_densely$place_transport[which(dummy_outside_densely$wave==i)]))
- sum_transport <- cbind(sum_transport,transport_plot)
- 
- # school
- 
- school_plot<- rbind(sum(dummy_outside_densely$place_school[which(dummy_outside_densely$wave==i)])+
-                     sum(dummy_hh_group_densely$Q80a_age_met_uni_u18[which(dummy_hh_group_densely$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_densely$Q80a_age_met_uni_1864[which(dummy_hh_group_densely$wave_0==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_densely$Q80a_age_met_uni_o64[which(dummy_hh_group_densely$wave_0==i)],na.rm=TRUE))
- 
- sum_school <- cbind(sum_school, school_plot)
- 
- # shop essential
- 
- shop_essential_plot<- rbind(sum(dummy_outside_densely$place_shop_essential[which(dummy_outside_densely$wave==i)]))
- sum_shop_essential <- cbind(sum_shop_essential,shop_essential_plot)
- 
- # shop non essential
- 
- shop_non_essential_plot<- rbind(sum(dummy_outside_densely$place_shop_non_essential[which(dummy_outside_densely$wave==i)]))
- sum_shop_non_essential <- cbind(sum_shop_non_essential,shop_non_essential_plot)
- 
- # entertainment
- 
- entertainment_plot<- rbind(sum(dummy_outside_densely$place_entertainment[which(dummy_outside_densely$wave==i)]))
- sum_entertainment <- cbind(sum_entertainment,entertainment_plot)
- 
- # sport
- 
- sport_plot<- rbind(sum(dummy_outside_densely$place_sport[which(dummy_outside_densely$wave==i)]))
- sum_sport <- cbind(sum_sport,sport_plot)
- 
-# park
- 
- park_plot<- rbind(sum(dummy_outside_densely$place_park[which(dummy_outside_densely$wave==i)]))
- sum_park <- cbind(sum_park,park_plot)
- 
- # healthcare
- 
- healthcare_plot<- rbind(sum(dummy_outside_densely$place_healthcare[which(dummy_outside_densely$wave==i)]))
- sum_healthcare <- cbind(sum_healthcare,healthcare_plot)
- 
- # beauty
- 
- beauty_plot<- rbind(sum(dummy_outside_densely$place_beauty[which(dummy_outside_densely$wave==i)]))
- sum_beauty <- cbind(sum_beauty,beauty_plot)
- 
- # other
- 
- other_plot<- rbind(sum(as.numeric(dummy_outside_densely$place_oth[which(dummy_outside_densely$wave==i)]),na.rm=TRUE))
- sum_other <- cbind(sum_other,other_plot)
- 
- # else, group contacts met else, interprets NA as 0
- else_plot<- rbind(sum(dummy_hh_group_densely$Q81a_age_met_else_u18[which(dummy_hh_group_densely$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_densely$Q81a_age_met_else_1864[which(dummy_hh_group_densely$wave==i)],na.rm=TRUE)+
-                     sum(dummy_hh_group_densely$Q81a_age_met_else_o64[which(dummy_hh_group_densely$wave==i)],na.rm=TRUE))
- 
- sum_else <- cbind(sum_else, else_plot)
- 
-# collect all sums in data.frame 
-data_barplot_wide_densely <- as.data.frame(rbind(sum_home_own,sum_home_else, sum_work, sum_worship, sum_transport,sum_school,
-                   sum_shop_essential,sum_shop_non_essential, sum_entertainment, sum_sport, 
-                   sum_park, sum_healthcare,sum_beauty, sum_other, sum_else))
-
-
-}
-
-# drop from global environment for next loop 
-
-rm(sum_beauty,sum_else,sum_entertainment,sum_healthcare,sum_home_else, sum_home_own,
-   sum_other, sum_park, sum_school, sum_shop_essential, sum_shop_non_essential,
-   sum_sport,sum_transport, sum_work, sum_worship)
-
-# change column names to waves
-colnames(data_barplot_wide_densely) <- c(1:current_wave)
-
-# add place variable as ID
-places_plot <- c(places, "place_else")
-data_barplot_wide_densely$places <- places_plot
-
-# change to long format
-data_barplot_long_densely <- melt(setDT(data_barplot_wide_densely), 
-                                 id.vars=c("places"), variable.name="wave")
-
-
-# plot
-plot_version3_densely <- ggplot(data_barplot_long_densely, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-             scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col,labels=c("beauty","else","entertainment","healthcare","home_else","home_own","other","park","school", 
-  "shop essential","shop non essential","sport","transport","work","worship")) +
-  guides(fill=guide_legend(title="Places")) +
-  scale_x_discrete(name="Wave", labels=c("03/3-10/3","31/3-07/4","21/4-28/4","12/5-19/5", 
-                             "02/6-09/6","23/6-30/6","14/7-21/7","04/8-11/8"))+
-  ylab("Percentage")+
-  theme(axis.text.x = element_text(angle=90),plot.title = element_text(size=9), legend.position = "none",panel.background = element_blank()) +
-  ggtitle("Densely populated areas")
-
-plot_version3_densely
-
-
-```
-
-#####combine graph
-
-```{r arranging plots version 3}
-# create mosaicplots and arrange them 
-
-
-plot_0 <- ggplot(data_barplot_long_densely, aes(x= wave, y=value, fill=places)) +
-  geom_bar(position="fill", stat="identity")+
-             scale_y_continuous(labels=scales::percent_format())+ scale_fill_manual(values = col #,labels=c("beauty","else","entertainment","healthcare","home_else","home_own","other","park","school", 
-#  "shop essential","shop non essential","sport","transport","work","worship")
-) +
-  guides(fill=guide_legend(title="Places", ncol = 2)) +
-  scale_x_discrete(name="Wave")+
-  theme(axis.text.x = element_text(angle=90)) 
-
-
-legend <- cowplot::get_legend(plot_0)
-
-gridExtra::grid.arrange(plot_version3_densely, plot_version3_intermediate, 
-             plot_version3_thinly, legend,
-             ncol=2,top = "Non-household contacts with group contacts")
-
-```
-
-
-## Contact matrices
-Kontaktmatrizen
-###  preparation
-
-```{r preparation}
-set.seed(12345678)
-
-#cut
-d_all_wide$Q79a_age_met_work_u18[d_all_wide$Q79a_age_met_work_u18>50] <- 50
-d_all_wide$Q79a_age_met_work_1864[d_all_wide$Q79a_age_met_work_1864>50] <- 50
-d_all_wide$Q79a_age_met_work_o64[d_all_wide$Q79a_age_met_work_o64>50] <- 50
-
-d_all_wide$Q80a_age_met_uni_u18[d_all_wide$Q80a_age_met_uni_u18>50] <- 50
-d_all_wide$Q80a_age_met_uni_1864[d_all_wide$Q80a_age_met_uni_1864>50] <- 50
-d_all_wide$Q80a_age_met_uni_o64[d_all_wide$Q80a_age_met_uni_o64>50] <- 50
-
-d_all_wide$Q81a_age_met_else_u18[d_all_wide$Q81a_age_met_else_u18>50] <- 50
-d_all_wide$Q81a_age_met_else_1864[d_all_wide$Q81a_age_met_else_1864>50] <- 50
-d_all_wide$Q81a_age_met_else_o64[d_all_wide$Q81a_age_met_else_o64>50] <- 50
-
-# Gruppenkontakte sollen zu non-hh contacts hinzugefügt werden, weil die non-hh
-# contacts in der Kontaktmatrize mitbeachtet werden sollen (Gruppenkontakte zeigt Anzahl der Kontakte, jetzt werden daraus einzelne Observations gemacht)
-# alle Beobachtungen, cut n=50
-df_work_u18 <- d_all_wide %>% 
-  filter(Q79a_age_met_work_u18 > 0 & Q79a_age_met_work_u18< 51) %>% 
-  select(new_id, wave,age_group, Q79a_age_met_work_u18)
-group_contacts_work_u18 <- df_work_u18 %>% uncount(Q79a_age_met_work_u18, TRUE)
-group_contacts_work_u18$age_group <- sample(0:17,1306, rep=TRUE)
-                   
-df_work_1864 <- d_all_wide %>% 
-  filter(Q79a_age_met_work_1864> 0 & Q79a_age_met_work_1864< 51) %>% 
-  select(new_id, wave,age_group, Q79a_age_met_work_1864) 
-group_contacts_work_1864 <- df_work_1864 %>% uncount(Q79a_age_met_work_1864, TRUE)
-group_contacts_work_1864$age_group <- sample(18:64,4781, rep=TRUE)
-
-df_work_o64 <- d_all_wide %>% 
-  filter(Q79a_age_met_work_o64> 0 & Q79a_age_met_work_o64< 51) %>% 
-  select(new_id, wave,age_group, Q79a_age_met_work_o64)
-group_contacts_work_o64 <- df_work_o64 %>% uncount(Q79a_age_met_work_o64, TRUE)
-group_contacts_work_o64$age_group <- sample(65:90,1585, rep=TRUE)
-
-df_school_u18 <- d_all_wide %>%
-  filter(Q80a_age_met_uni_u18  > 0 & Q80a_age_met_uni_u18 < 51) %>% 
-  select(new_id, wave,age_group, Q80a_age_met_uni_u18)
-group_contacts_school_u18 <- df_school_u18 %>% uncount(Q80a_age_met_uni_u18, TRUE)
-group_contacts_school_u18$age_group <- sample(0:17,2201, rep=TRUE)
-
-df_school_1864 <- d_all_wide %>%
-  filter(Q80a_age_met_uni_1864  > 0 & Q80a_age_met_uni_1864 < 51) %>% 
-  select(new_id, wave,age_group, Q80a_age_met_uni_1864)
-group_contacts_school_1864 <- df_school_1864 %>% uncount(Q80a_age_met_uni_1864, TRUE)
-group_contacts_school_1864$age_group <- sample(18:64,819, rep=TRUE)
-
-df_school_o64 <- d_all_wide %>%
-  filter(Q80a_age_met_uni_o64  > 0 & Q80a_age_met_uni_o64 < 51) %>% 
-  select(new_id, wave,age_group, Q80a_age_met_uni_o64)
-group_contacts_school_o64 <- df_school_o64 %>% uncount(Q80a_age_met_uni_o64, TRUE)
-group_contacts_school_o64$age_group <- sample(64:90,188, rep=TRUE)
-
-
-df_else_u18 <- d_all_wide %>%
-  filter(Q81a_age_met_else_u18 > 0 & Q81a_age_met_else_u18 < 51) %>% 
-  select(new_id, wave,age_group, Q81a_age_met_else_u18)
-group_contacts_else_u18 <- df_else_u18 %>% uncount(Q81a_age_met_else_u18, TRUE)
-group_contacts_else_u18$age_group <- sample(0:17,1210, rep=TRUE)
-
-df_else_1864 <- d_all_wide %>%
-  filter(Q81a_age_met_else_1864 > 0 & Q81a_age_met_else_1864 < 51) %>% 
-  select(new_id, wave,age_group, Q81a_age_met_else_1864)
-group_contacts_else_1864 <- df_else_1864 %>% uncount(Q81a_age_met_else_1864, TRUE)
-group_contacts_else_1864$age_group <- sample(18:64,2984, rep=TRUE)
-
-df_else_o64 <- d_all_wide %>%
-  filter(Q81a_age_met_else_o64 > 0 & Q81a_age_met_else_o64 < 51) %>% 
-select(new_id, wave,age_group, Q81a_age_met_else_o64)
-group_contacts_else_o64 <- df_else_o64 %>% uncount(Q81a_age_met_else_o64, TRUE)
-group_contacts_else_o64$age_group <- sample(64:90,910, rep=TRUE)
-
-
-group_list <- list(group_contacts_work_u18, group_contacts_work_1864, group_contacts_work_o64, 
-     group_contacts_school_u18, group_contacts_school_1864, group_contacts_school_o64,
-     group_contacts_else_u18, group_contacts_else_1864, group_contacts_else_o64)
-
-group_contacts_all <- bind_rows(group_list)
-
-keeps <- c("new_id","wave", "age_group")  
-dt_outside_all_2 <- dt_outside_all[ , keeps, drop = FALSE]
-
-
-# final (mit dieser Variable arbeiten!)
-dt_outside_all_c <- rbind(dt_outside_all_2, group_contacts_all)
-
-# #rename waves
-# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 1"] <- 1
-# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 2"] <- 2
-# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 3"] <- 3
-# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 4"] <- 4
-# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 5"] <- 5
-# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 6"] <- 6
-# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 7"] <- 7
-# dt_outside_all_c$wave[dt_outside_all_c$wave== "Wave 8"] <- 8
-
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group == 0] <- "<1"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 1 | dt_outside_all_c$age_group == 2 |
-                           dt_outside_all_c$age_group== 3 | dt_outside_all_c$age_group== 4] <- "1-4"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 5 |dt_outside_all_c$age_group== 6 |
-                             dt_outside_all_c$age_group== 7 |dt_outside_all_c$age_group== 8 |
-                             dt_outside_all_c$age_group== 9 ] <- "5-9"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 10 | dt_outside_all_c$age_group== 11 |
-                             dt_outside_all_c$age_group== 12 | dt_outside_all_c$age_group== 13 |
-                             dt_outside_all_c$age_group== 14] <- "10-14"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 15 | dt_outside_all_c$age_group== 16 |
-                             dt_outside_all_c$age_group== 17 | dt_outside_all_c$age_group== 18 |
-                             dt_outside_all_c$age_group== 19 ] <- "15-19"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 20 | dt_outside_all_c$age_group== 21 |
-                             dt_outside_all_c$age_group== 22 | dt_outside_all_c$age_group== 23 |
-                             dt_outside_all_c$age_group== 24 ] <- "20-24"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 25 | dt_outside_all_c$age_group== 26 |
-                             dt_outside_all_c$age_group== 27 | dt_outside_all_c$age_group== 28 |
-                             dt_outside_all_c$age_group== 29 | dt_outside_all_c$age_group== 30 |
-                             dt_outside_all_c$age_group== 31 | dt_outside_all_c$age_group== 32 |
-                             dt_outside_all_c$age_group== 33 | dt_outside_all_c$age_group== 34]  <- "25-34"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 35 | dt_outside_all_c$age_group== 36 |
-                             dt_outside_all_c$age_group== 37 | dt_outside_all_c$age_group== 38 |
-                             dt_outside_all_c$age_group== 39 | dt_outside_all_c$age_group== 40 |
-                             dt_outside_all_c$age_group== 41 | dt_outside_all_c$age_group== 42 |
-                             dt_outside_all_c$age_group== 43 | dt_outside_all_c$age_group== 44 ] <- "35-44"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 45 | dt_outside_all_c$age_group== 46 |
-                             dt_outside_all_c$age_group== 47 |dt_outside_all_c$age_group== 48 |
-                             dt_outside_all_c$age_group== 49 | dt_outside_all_c$age_group== 50 |
-                             dt_outside_all_c$age_group== 51 | dt_outside_all_c$age_group== 52 |
-                             dt_outside_all_c$age_group== 53 | dt_outside_all_c$age_group== 54 ] <- "45-54"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 55 | dt_outside_all_c$age_group== 56 |
-                             dt_outside_all_c$age_group== 57 | dt_outside_all_c$age_group== 58 |
-                             dt_outside_all_c$age_group== 59 | dt_outside_all_c$age_group== 60 |
-                             dt_outside_all_c$age_group== 61 | dt_outside_all_c$age_group== 62 |
-                             dt_outside_all_c$age_group== 63 | dt_outside_all_c$age_group== 64 ] <- "55-64"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 65 | dt_outside_all_c$age_group== 66 |
-                             dt_outside_all_c$age_group== 67 | dt_outside_all_c$age_group== 68 |
-                             dt_outside_all_c$age_group== 69] <- "65-69"
-
-
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 70 | dt_outside_all_c$age_group== 71 | dt_outside_all_c$age_group== 72 |
-                             dt_outside_all_c$age_group== 73 | dt_outside_all_c$age_group== 74 ] <- "70-74"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 75 | dt_outside_all_c$age_group== 76 |
-                             dt_outside_all_c$age_group== 77 | dt_outside_all_c$age_group== 78 |
-                             dt_outside_all_c$age_group== 79 ] <- "75-79"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 80 |dt_outside_all_c$age_group== 81 | dt_outside_all_c$age_group== 82 |
-                           dt_outside_all_c$age_group== 83 | dt_outside_all_c$age_group== 84] <- "80-84"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group== 85 | dt_outside_all_c$age_group== 86 |
-                             dt_outside_all_c$age_group== 87 | dt_outside_all_c$age_group== 88 |
-                             dt_outside_all_c$age_group== 89 | dt_outside_all_c$age_group== 90] <- "85+"
-
-dt_outside_all_c$age_group[dt_outside_all_c$age_group=="85 years or older"] <- "85+" 
-dt_outside_all_c$age_group[dt_outside_all_c$age_group == "Under 1"] <- "<1" 
-
-dt_outside_all_c_between <- dt_outside_all_c
-
-dt_hh_all2 <- dt_hh_all %>% 
-  select(new_id, wave, age_group)
-
-dt_hh_all2$age_group[dt_hh_all2$age_group=="85 years or older"] <- "85+" 
-dt_hh_all2$age_group[dt_hh_all2$age_group == "Under 1"] <- "<1" 
-
-#check
-unique(dt_hh_all2$age_group) 
-table1::table1(~age_group  |wave, dt_hh_all2, caption = "Check")
-table1::table1(~age_group  |wave, dt_outside_all_c_between, caption = "Check")
-
-
-dt_outside_all_c <- rbind(dt_outside_all_c_between, dt_hh_all2)
-
-#check
-unique(dt_outside_all_c$age_group) 
-table1::table1(~age_group  |wave, dt_outside_all_c, caption = "Check")
-# View(dt_outside_all_c)
-
-```
-
-
-###wave n
-
-
-```{r contact matrix wave 2 densely}
-# Variablen, die wir brauchen
-set.seed(123456789)
-wave_n <- 1
-
-part_matrix_den2 <- d_self_all %>% 
-  select(new_id, wave, age_group)%>%
-  filter(wave == wave_n)
-
-# Variablen, die wir brauchen
-out_contacts_den2 <- dt_outside_all_c_between %>% 
-  select(new_id, wave, age_group) %>%
-  filter(wave==wave_n)
-
-# df bearbeiten
-part_matrix_den2 <- part_matrix_den2 %>% mutate(part_age =
-                                                  case_when(age_group == "Under 1" ~ 2,
-                                                            age_group == "1-4" ~ 2, 
-                                                            age_group == "5-9" ~ 2,
-                                                            age_group == "10-14" ~ 2,
-                                                            age_group == "15-19" ~ 17,
-                                                            age_group == "20-24" ~ 22,
-                                                            age_group == "25-34" ~ 30,
-                                                            age_group == "35-44" ~ 40,
-                                                            age_group == "45-54" ~ 50,
-                                                            age_group == "55-64" ~ 60,
-                                                            age_group == "65-69" ~ 67,
-                                                            age_group == "70-74" ~ 67,
-                                                            age_group == "75-79" ~ 82,
-                                                            age_group == "80-84" ~ 82,
-                                                            age_group == "85 years or older" ~ 82))
-
-out_contacts_den2 <- out_contacts_den2 %>% mutate(cnt_age =
-                                                    case_when(age_group == "Under 1" ~ 2,
-                                                              age_group == "1-4" ~ 2, 
-                                                              age_group == "5-9" ~ 2,
-                                                              age_group == "10-14" ~ 2,
-                                                              age_group == "15-19" ~ 17,
-                                                              age_group == "20-24" ~ 22,
-                                                              age_group == "25-34" ~ 30,
-                                                              age_group == "35-44" ~ 40,
-                                                              age_group == "45-54" ~ 50,
-                                                              age_group == "55-64" ~ 60,
-                                                              age_group == "65-69" ~ 67,
-                                                              age_group == "70-74" ~ 67,
-                                                              age_group == "75-79" ~ 82,
-                                                              age_group == "80-84" ~ 82,
-                                                              age_group == "85 years or older" ~ 82))
-
-
-# für socialmixR Variable in part_id ändern, survey_object erstellen
-# part_id und survey_object werden für die Kontaktmatrix benötigt
-colnames(part_matrix_den2)[1] <- "part_id"
-colnames(out_contacts_den2)[1] <- "part_id" #out_contacts = non_hh-contacts
-survey_object_den2  <- survey(part_matrix_den2, out_contacts_den2)
-
-# contact matrix erstellen
-cm_den2 <- contact_matrix(survey_object_den2, age.limits = c(0, 14, 19, 24, 34, 44, 54, 64, 75),  
-                          missing.participant.age = c("remove"),
-                          missing.contact.age = c("remove"),
-                          symmetric = TRUE)
-
-# output gespeichert, data_cm wird für heatmap benötigt
-data_cm_den2 <- cm_den2$matrix
-
-#Plot
-melt_cm_den2 <- reshape2::melt(data_cm_den2)
-
-melt_cm_den2$Var1[melt_cm_den2$Var1 ==  1] <- "0-14"
-melt_cm_den2$Var1[melt_cm_den2$Var1 ==  2] <- "15-19"
-melt_cm_den2$Var1[melt_cm_den2$Var1 ==  3] <- "20-24"
-melt_cm_den2$Var1[melt_cm_den2$Var1 ==  4] <- "25-34"
-melt_cm_den2$Var1[melt_cm_den2$Var1 ==  5] <- "35-44"
-melt_cm_den2$Var1[melt_cm_den2$Var1 ==  6] <- "45-54"
-melt_cm_den2$Var1[melt_cm_den2$Var1 ==  7] <- "55-64"
-melt_cm_den2$Var1[melt_cm_den2$Var1 ==  8] <- "65-74"
-melt_cm_den2$Var1[melt_cm_den2$Var1 ==  9] <- "75+"
-
-levels(melt_cm_den2$contact.age.group) <- list("0-14" = "[0,14)", "15-19" = "[14,19)", 
-                                               "20-24" = "[19,24)", "25-34" = "[24,34)", 
-                                               "35-44" = "[34,44)", "45-54" = "[44,54)",
-                                               "55-64" = "[54,64)", "65-74" = "[64,75)",
-                                               "75+" = "75+")
-
-c_pattern <- ggplot(melt_cm_den2, aes(contact.age.group, Var1)) +
-  geom_tile(aes(fill = value)) +
-  coord_equal() +
-  ggtitle(paste0("Wave",wave_n)) +
-  geom_text(aes(label=sprintf("%0.1f", round(value, digits = 2))), size = 4) +
-  # scale_fill_gradient2(low = "#2000CD",
-  #                      mid = "white",
-                       # high = "#D60C00", limits = c(0,4), midpoint = 2) +
-  scale_fill_gradient2(low = "#fff7ec",
-                       # mid = "white",
-                       high = "#b30000",limits = c(0,4)) +
-  guides(fill = guide_colourbar(barwidth = 0.5,
-                                barheight = 20, title = "Contacts")) +
-  # theme(legend.position = "none")+
-  theme(plot.title = element_text(size = 12, face = "bold"))+
-  theme(plot.title = element_text(hjust = 0.5)) +
-  theme(axis.title.x=element_blank())+
-  theme(axis.title.y=element_blank()) +
-  theme(panel.background = element_blank()) +
-  theme(axis.ticks.x = element_blank()) +
-  theme(axis.ticks.y = element_blank()) +
-  theme(axis.text.x = element_text(size = 10, angle = 90, vjust = 0.5,face="bold") ) +
-  theme(axis.text.y = element_text(size = 10, face = "bold"))
-
+#method1:
+# plot mean contact
+ggplot(d_all_wide, aes(x=wave_0, y=all_contact_n_Q75))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95), fill="lightblue")+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean, color="red")+
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+  coord_cartesian( ylim = c(0, 6))+
+  # scale_x_discrete("",labels = c(WAVES))+ #
+  labs(y="Mean_all_contact_n_Q75",x="wave")+
+  ggtitle("All contact")+
+   # theme_bw() +
+    theme(axis.text.x = element_text(colour = "black", size = 15, 
+                                     angle = 90, hjust = 0.5, vjust = 0,5),
+          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+          axis.title = element_text(colour = "black", size = 16, face = "bold"),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          legend.position = "right",
+          legend.text = element_text(colour = "black", size = 15),
+          legend.title = element_text(colour = "black", size = 16, face = "bold"),
+          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+                                    hjust = 0),
+          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+
+# plot mean contact_hh
+ggplot(d_all_wide, aes(x=wave_0, y=hh_contact_n))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95), fill="lightblue")+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean, color="red")+
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+   coord_cartesian( ylim = c(0, 6))+
+  labs(y="Mean_contact_hh",x="Wave")+
+  ggtitle("Household contact")+
+   # theme_bw() +
+    theme(axis.text.x = element_text(colour = "black", size = 15, 
+                                     angle = 90, hjust = 0.5, vjust = 0,5),
+          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+          axis.title = element_text(colour = "black", size = 16, face = "bold"),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          legend.position = "right",
+          legend.text = element_text(colour = "black", size = 15),
+          legend.title = element_text(colour = "black", size = 16, face = "bold"),
+          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+                                    hjust = 0),
+          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+# plot mean contact_non_hh
+ggplot(d_all_wide, aes(x=wave_0, y=non_hh_contact_n_Q75))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95), fill="lightblue")+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean, color="red")+
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+   coord_cartesian( ylim = c(0, 6))+
+  labs(y="Mean_contact_non_hh_Q75", x="Wave")+
+  ggtitle("Non-household contact")+
+   # theme_bw() +
+    theme(axis.text.x = element_text(colour = "black", size = 15, 
+                                     angle = 90, hjust = 0.5, vjust = 0,5),
+          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+          axis.title = element_text(colour = "black", size = 16, face = "bold"),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          legend.position = "right",
+          legend.text = element_text(colour = "black", size = 15),
+          legend.title = element_text(colour = "black", size = 16, face = "bold"),
+          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+                                    hjust = 0),
+          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+
+# all contact in one plot
+dt <- d_all_wide %>% select("wave_0","all_contact_n_Q75","non_hh_contact_n_Q75","hh_contact_n")
+dt <- melt(dt,id.vars="wave_0")
+
+ggplot(dt, aes( x=wave_0, y=value, colour=variable, fill=variable ))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95))+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean)+
+  # scale_fill_manual(values = c("#fee8c8","#e7e1ef"))+
+  scale_fill_manual(values = c("#fee8c8","#e7e1ef","#2b8cbe"))+
+  
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+  # scale_x_discrete("",labels = c(WAVES))+ #
+  labs(y="Mean_contacts_Q75",x="wave")+
+   ggtitle("Mean contacts over time in NRW")+
+   # theme_bw() +
+    theme(axis.text.x = element_text(colour = "black", size = 15, 
+                                     angle = 90, hjust = 0.5, vjust = 0,5),
+          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+          axis.title = element_text(colour = "black", size = 16, face = "bold"),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          legend.position = "right",
+          legend.text = element_text(colour = "black", size = 15),
+          legend.title = element_text(colour = "black", size = 16, face = "bold"),
+          
+          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+                                    hjust = 0.5),
+          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+rm(dt)
+
+#https://stackoverflow.com/questions/53180486/plotting-average-of-multiple-groups-across-time-in-ggplot2 (plot different group)
+
+# another approach show similar result
+
+# #method2
+# mean.contact = d_all_wide %>%
+#   group_by(wave_0) %>%
+#   dplyr::summarise(N = n(),
+#             avg.contact = mean(all_contact_n_Q75),
+#             SE.low = avg.contact - (sd(all_contact_n_Q75)/sqrt(N)),
+#             SE.high = avg.contact + (sd(all_contact_n_Q75)/sqrt(N)))
 # 
-# #library(cowplot)
-# legend_matrix<- ggplot(melt_cm_den1, aes(contact.age.group, Var1)) +
-#   geom_tile(aes(fill = value)) +
-#   coord_equal() +
-#   ggtitle("Wave 1 in densely populated areas") +
-#   geom_text(aes(label=sprintf("%0.1f", round(value, digits = 2))), size = 2) +
-#   scale_fill_gradient2(low = "#2000CD",
-#                        mid = "white",
-#                        high = "#D60C00", limits = c(0,4), midpoint = 2) +
-#   guides(fill = guide_colourbar(barwidth = 0.5,
-#                                 barheight = 5, title = "Contacts")) +
-#   theme(legend.position = "right")+
-#   theme(plot.title = element_text(size = 6, face = "bold"))+
-#   theme(plot.title = element_text(hjust = 0.5)) +
-#   theme(axis.title.x=element_blank())+
-#   theme(axis.title.x=element_blank())+
-#   theme(axis.title.y=element_text(size = 5)) +
-#   theme(panel.background = element_blank()) +
-#   theme(axis.ticks.x = element_blank()) +
-#   theme(axis.ticks.y = element_blank()) +
-#   theme(axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5)) +
-#   theme(axis.text.y = element_text(size = 5))
 # 
-# legend_matrix
+# plot(avg.contact ~ wave_0, data = mean.contact,ylim=c(0,6), type = 'n')
+# polygon(c(mean.contact$wave_0, rev(mean.contact$wave_0)),
+#         c(mean.contact$SE.low,rev(mean.contact$SE.high)), density = 200, col ='grey90')
 # 
-# one_legend <- cowplot::get_legend(legend_matrix)
-# 
-# one_legend
-
-c_pattern
-c_pattern <- paste0(path_contact_pattern,"/Wave ",wave_n,".png")
-ggsave(c_pattern, width=10, height=7)
-
-
+# points(avg.contact ~ wave_0, data = mean.contact, pch = 19, col = 'firebrick')
 
 
 ```
