@@ -67,6 +67,8 @@ library(grid)
 library(Rmisc)
 library(gtable)
 
+# socialmixr::contact_matrix # to see source of function
+
 ```
 
 #changeable variables
@@ -753,7 +755,7 @@ n.table <- function(x) {
 #wave label
 
 ```{r Vectors to use}
- WAVES <- c("30.04.–06.05. (W01)",
+ wave_label <- c("30.04.–06.05.(W01)",
            "14.05.–21.05. (W02)",
            "28.05.–04.06. (W03)",
            "11.06.–22.06. (W04)",
@@ -786,7 +788,38 @@ n.table <- function(x) {
            "17.11.-23.11. (W31)",
            "tobe_filled. (W32)")
 
-
+ wave_date <- c("30.04.2020",
+           "14.05.2020",
+           "28.05.2020",
+           "11.06.2020",
+           "26.06.2020",
+           "09.07.2020",
+           "24.07.2020",
+           "07.08.2020",
+           "04.09.2020",
+           "30.09.2020",
+           "14.10.2020",
+           "29.10.2020",
+           "05.11.2020", 
+           "25.11.2020",
+           "09.12.2020",
+           "23.12.2020", 
+           "28.01.2021", 
+           "24.02.2021", 
+           "17.03.2021",
+           "07.04.2021",
+           "12.05.2021",
+           "26.05.2021", 
+           "09.06.2021", 
+           "07.07.2021", 
+           "04.08.2021", 
+           "01.09.2021",
+           "22.09.2021", 
+           "08.10.2021", 
+           "22.10.2021",
+           "03.11.2021", 
+           "17.11.2021",
+           "30.11.2021") # this may not true, ask Veronika
 
 
 places <- c("place_home_own",
@@ -1186,7 +1219,6 @@ dt_hh_all<- dt_hh_all[,c(1,162,2:161,163:215) ] #move wave(162) in front
 #Cleaning and preparing data
 ## check dupliacte data
 ```{r}
-w=14
 #d_self_all
 ##In each wave, each participant (new_id) should be unique, check if it is true.
 for (w in 1:current_wave){
@@ -1672,9 +1704,7 @@ d_all_wide$weekday <- factor(d_all_wide$weekday, levels = c("Mon", "Tue", "Wed",
  
 ```
 
-## add Q75/76 
-
-* (W1-13)
+## add Q75/76 and truncation
  
 Q.75 How many people have you had contact with whom you did not specify individually? Please, provide an estimated value as precisely as possible, including age and environment. For the purpose of this question, we are only interested in people with whom there was direct contact and with whom you have exchanged at least a few words OR with whom you have had physical contact (e.g. shaking hands, hugging, contact sports). Please, indicate the number of contacts for each age group and each environment. 
 
@@ -1685,7 +1715,9 @@ The group contact info mainly retrieved from Q75.However, if Q76 > Q75 -> use Q7
 
 From wave 14 onward, group contact question ( Q79-Q81) is formulated as a matrix table ( location X age group)
 
-```{r Add Q75 / Q76 contacts AND truncate Q contacts at 50}
+The truncate is for a group place (school, work, else) as a whole ( not at age group level)
+
+```{r Add Q75 / Q76 contacts AND truncate Q contacts}
 # Please check each category individually. I.e. compare Q75_u18_work with Q76_u18_work and replace if necessary and that just for each category. That's how I did it so far and Victoria took over from me.
 
 
@@ -1794,51 +1826,52 @@ d_all_wide$not_specified_contact_n_Q75 <- d_all_wide$not_specified_contact_n + d
 ```
 
 ##add Q75/76 to non-hh
+In question Q75/76, do we know the contact is inside or outside
 
 ```{r Add Q75 / Q76 contacts to non-hh contacts}
 
-# also add to all non_hh_
+#  add to all non_hh_contact_n
 d_all_wide$non_hh_contact_n <- d_all_wide$non_hh_contact_n + 
   d_all_wide$Q75_work_sum + 
   d_all_wide$Q75_school_sum + 
   d_all_wide$Q75_else_sum
 
 
-# also add to all_
+#  add to all work_contact_n
+d_all_wide$work_contact_n <- d_all_wide$ work_contact_n +
+  d_all_wide$Q75_work_sum
+  
+
+#  add to all school_contact_n
+d_all_wide$school_contact_n <- d_all_wide$school_contact_n +
+  d_all_wide$Q75_school_sum
+
+
+#  add to all not_specified_contact_n
+d_all_wide$not_specified_contact_n <- d_all_wide$not_specified_contact_n + 
+  d_all_wide$Q75_else_sum
+
+#  add to all_
 d_all_wide$all_contact_n <- d_all_wide$all_contact_n + 
   d_all_wide$Q75_work_sum + 
   d_all_wide$Q75_school_sum + 
   d_all_wide$Q75_else_sum
 
-```
-
-##add Q75/76 to non-hh truncated overall at 50 (lshtm)
-
-```{r Add Q75 / Q76 contacts to non-hh contacts truncated overall at 50, i.e. like lshtm does it not based on categories}
-n
-d_all_wide$Q75_combined <- d_all_wide$Q75_work_sum + d_all_wide$Q75_school_sum + d_all_wide$Q75_else_sum
-d_all_wide$Q75_combined[d_all_wide$Q75_combined>truncate_lshtm] <- truncate_lshtm
-
-
-
-# also add to all non_hh_
-d_all_wide$non_hh_contact_n_lshtm_ <- d_all_wide$non_hh_contact_n + 
-  d_all_wide$Q75_combined
-
-# also add to all_
-d_all_wide$all_contact_n_lshtm <- d_all_wide$all_contact_n + 
-  d_all_wide$Q75_combined
-
 
 ```
 
-##data checks and labelling
+
+## labelling
 
 ```{r Some data checks and labelling}
 
 d_all_wide$wave <- as.factor(d_all_wide$wave)
-levels(d_all_wide$wave) <- WAVES[as.integer(levels(d_all_wide$wave))] # label wave with dates,etc
+levels(d_all_wide$wave) <- wave_label[as.integer(levels(d_all_wide$wave))] # label wave with dates,etc
 
+d_all_wide$wave_date <- d_all_wide$wave_0
+d_all_wide$wave_date <- as.factor(d_all_wide$wave_date)
+levels(d_all_wide$wave_date) <- wave_date[as.integer(levels(d_all_wide$wave_date))] # wave with start date
+d_all_wide$wave_date <- as.Date(d_all_wide$wave_date, format = "%d.%m.%Y")
 
 summary(d_all_wide$age_0)
 # age_0 is never below 18 because it is only known for the respondent
@@ -2009,12 +2042,11 @@ table1(~ age_group_2 + sex2 +hh_p_incl_0_2|wave, data=df)
 ## Percent people having non-hh contact
 ```{r}
 
-
-df_histo <- df %>% select(new_id, wave, non_hh_contact_n_Q75)
+df_histo <- df %>% dplyr::select(new_id, wave, non_hh_contact_n)
 df_histo$wave_0 <- as.numeric(df_histo$wave)
-df_histo$non_hh_contacts_over_0[df_histo$non_hh_contact_n_Q75==0] <- "No"
-df_histo$non_hh_contacts_over_0[df_histo$non_hh_contact_n_Q75>0] <- "Yes"
-table1(~ non_hh_contacts_over_0 + as.factor(non_hh_contact_n_Q75)|wave, data=df_histo)
+df_histo$non_hh_contacts_over_0[df_histo$non_hh_contact_n==0] <- "No"
+df_histo$non_hh_contacts_over_0[df_histo$non_hh_contact_n>0] <- "Yes"
+table1(~ non_hh_contacts_over_0 + as.factor(non_hh_contact_n)|wave, data=df_histo)
 df_histo <- df_histo %>% group_by(wave_0, non_hh_contacts_over_0) %>% dplyr::summarise(non_hh_contacts_over_0_n=n())
 
 
@@ -2058,7 +2090,7 @@ ggsave(no_non_hh_contact_name, width=10, height=7)
 ```{r ,results="asis"}
 
 #mean contact
-table1::table1(~all_contact_n_Q75 + all_contact_n | wave, data=df)
+table1::table1(~all_contact_n + all_contact_n | wave, data=df)
 
 ```
 
@@ -2180,8 +2212,7 @@ ggsave(hh_part, width=10, height=7)
 ```{r}
 
 #Mask 
-
-df_histo <- df %>% select(new_id, wave, mask_0)
+df_histo <- df %>% select(new_id, wave_0, mask_0)
 df_histo <- df_histo %>% group_by(wave_0, mask_0) %>% dplyr::summarise(mask_0_n=n())
 
 
@@ -2222,7 +2253,7 @@ ggsave(mask_per_wave_all, width=10, height=7)
 
 
 #Mask restricted to those with at least one non-hh contact 
-df_histo <- df %>% filter(non_hh_contact_n_Q75>0) %>% select(new_id, wave, mask_0)
+df_histo <- df %>% filter(non_hh_contact_n>0) %>% select(new_id, wave, mask_0)
 df_histo$wave_0 <- as.numeric(df_histo$wave)
 df_histo <- df_histo %>% group_by(wave_0, mask_0) %>% dplyr::summarise(mask_0_n=n())
 
@@ -2260,6 +2291,7 @@ mask_per_wave_restricted <- paste0(path_figures, "/mask_restricted", ".png")
 ggsave(mask_per_wave_restricted, width=10, height=7)
 
 ```
+
 
 ## Transport Use
 
@@ -2314,7 +2346,183 @@ ggsave(transport_per_wave_all, width=10, height=7)
 
 #method1:
 # plot mean contact
-ggplot(df, aes(x=wave_0, y=all_contact_n))+ 
+ggplot(df, aes(x=wave_date, y=all_contact_n))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95), fill="lightblue")+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean, color="red")+
+  coord_cartesian( ylim = c(0, 6))+
+   ggtitle("All contact")+
+  labs(y="Mean_all_contact",x="Start date of each wave")+
+  scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
+ theme_classic()+
+    theme(axis.text.x = element_text(colour = "black", size = 10, 
+                                     angle = 90, hjust = 0.5, vjust = 0,5),
+          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+          axis.title = element_text(colour = "black", size = 15, face = "bold"),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          legend.position = "right",
+          legend.text = element_text(colour = "black", size = 15),
+          legend.title = element_text(colour = "black", size = 16, face = "bold"),
+          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+                                    hjust = 0),
+          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+
+# plot mean contact_hh
+ggplot(df, aes(x=wave_date, y=hh_contact_n))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95), fill="lightblue")+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean, color="red")+
+  # scale_x_continuous(breaks = seq(1,current_wave,2))+
+   coord_cartesian( ylim = c(0, 6))+
+  labs(y="Mean_contact_hh",x="Start date of each wave")+
+  ggtitle("Household contact")+
+    scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
+ theme_classic()+
+    theme(axis.text.x = element_text(colour = "black", size = 10, 
+                                     angle = 90, hjust = 0.5, vjust = 0,5),
+          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+          axis.title = element_text(colour = "black", size = 15, face = "bold"),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          legend.position = "right",
+          legend.text = element_text(colour = "black", size = 15),
+          legend.title = element_text(colour = "black", size = 16, face = "bold"),
+          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+                                    hjust = 0),
+          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+# plot mean contact_non_hh
+ggplot(df, aes(x=wave_date, y=non_hh_contact_n))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95), fill="lightblue")+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean, color="red")+
+  # scale_x_continuous(breaks = seq(1,current_wave,2))+
+   coord_cartesian( ylim = c(0, 6))+
+  labs(y="Mean_contact_non_hh", x="Start date of each wave")+
+  ggtitle("Non-household contact")+
+    scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
+ theme_classic()+
+    theme(axis.text.x = element_text(colour = "black", size = 10, 
+                                     angle = 90, hjust = 0.5, vjust = 0,5),
+          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+          axis.title = element_text(colour = "black", size = 15, face = "bold"),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          legend.position = "right",
+          legend.text = element_text(colour = "black", size = 15),
+          legend.title = element_text(colour = "black", size = 16, face = "bold"),
+          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+                                    hjust = 0),
+          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+# all contact in one plot
+dt <- df %>% select("wave_date","all_contact_n","non_hh_contact_n","hh_contact_n")
+dt <- melt(dt,id.vars="wave_date")
+
+ggplot(dt, aes( x=wave_date, y=value, colour=variable, fill=variable ))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95))+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean)+
+
+  scale_fill_manual(values = c("#fee8c8","#e7e1ef","#2b8cbe"),
+                    labels =c("all_contact","non_hh_contact", "hh_contact"))+
+  scale_color_manual(values = c("red","purple","blue"),
+                    labels =c("all_contact","non_hh_contact", "hh_contact"))+ # color for mean points
+  
+  # scale_x_continuous(breaks = seq(1,current_wave,2))+
+  # scale_x_discrete("",labels = c(WAVES))+ #
+  labs(y="Mean_contacts",x="Start date of each wave")+
+   ggtitle("Mean contacts over time in NRW")+
+    scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
+ theme_classic()+
+    theme(axis.text.x = element_text(colour = "black", size = 10, 
+                                     angle = 90, hjust = 0.5, vjust = 0,5),
+          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+          axis.title = element_text(colour = "black", size = 15, face = "bold"),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          legend.position = "right",
+          legend.text = element_text(colour = "black", size = 15),
+          legend.title = element_blank(),
+          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+                                    hjust = 0),
+          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+rm(dt)
+
+
+
+```
+
+### non_hh_contact
+
+```{r}
+
+# all contact in one plot
+# dt <- df %>% select("wave_0",contains("_contact_n"))
+dt <- df %>% select("wave_date","non_hh_contact_n","work_contact_n","school_contact_n")
+
+dt <- melt(dt,id.vars="wave_date")
+
+ggplot(dt, aes( x=wave_date, y=value, colour=variable, fill=variable ))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95))+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean)+
+
+  scale_fill_manual(values = c("#fee8c8","#e7e1ef","#2b8cbe"),
+                    labels =c("non_hh_contact","work_contact","school_contact")
+                    )+
+  scale_color_manual(values = c("red","purple","blue"),
+                    labels =c("non_hh_contact","work_contact","school_contact")
+                    )+ # color for mean points
+  
+  scale_x_continuous(breaks = seq(1,current_wave,2))+
+  # scale_x_discrete("",labels = c(WAVES))+ #
+  labs(y="Mean_contacts",x="Start date of each wave")+
+   ggtitle("Mean contacts over time in NRW")+
+   scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
+ theme_classic()+
+    theme(axis.text.x = element_text(colour = "black", size = 10, 
+                                     angle = 90, hjust = 0.5, vjust = 0,5),
+          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+          axis.title = element_text(colour = "black", size = 15, face = "bold"),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          legend.position = "right",
+          legend.text = element_text(colour = "black", size = 15),
+          legend.title = element_blank(),
+          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+                                    hjust = 0),
+          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+rm(dt)
+
+
+```
+
+
+
+##Is a person has the same trend of contact?
+
+This is restricted to participant has more than 25 times
+
+"When restrictions get lifted, one sits at home and doing a survey becomes far more boring than going to a pub, etc. Finally seeing all the people that you haven't been able to see. So there's a difficulty there with fatigue and actually capturing people that might have the most amount of contacts."
+
+```{r}
+
+min_number_waves=25
+df_rep <- get_contacts(d_all_wide,waves=c(1:current_wave),min.waves=min_number_waves)
+
+unique(df_rep$new_id)
+rep_n <- unique(df_rep$new_id) #vector store respondents who attend at least min_number_waves
+# rep_n <- rep_n[22] # to see individual seperately4
+
+
+#method1:
+# plot mean contact
+ggplot(df_rep%>%filter(new_id %in% rep_n), aes(x=wave_0, y=all_contact_n))+ 
     stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
                  fun.args=list(conf.int=0.95), fill="lightblue")+
     stat_summary(geom="line", fun=mean, linetype="dashed")+
@@ -2339,7 +2547,7 @@ ggplot(df, aes(x=wave_0, y=all_contact_n))+
           strip.text = element_text(colour = "black", size = base_size, face = "bold"))
 
 # plot mean contact_hh
-ggplot(df, aes(x=wave_0, y=hh_contact_n))+ 
+ggplot(df_rep%>%filter(new_id %in% rep_n), aes(x=wave_0, y=hh_contact_n))+ 
     stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
                  fun.args=list(conf.int=0.95), fill="lightblue")+
     stat_summary(geom="line", fun=mean, linetype="dashed")+
@@ -2362,177 +2570,7 @@ ggplot(df, aes(x=wave_0, y=hh_contact_n))+
                                     hjust = 0),
           strip.text = element_text(colour = "black", size = base_size, face = "bold"))
 # plot mean contact_non_hh
-ggplot(df, aes(x=wave_0, y=non_hh_contact_n))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95), fill="lightblue")+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean, color="red")+
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-   coord_cartesian( ylim = c(0, 6))+
-  labs(y="Mean_contact_non_hh", x="Wave")+
-  ggtitle("Non-household contact")+
-   # theme_bw() +
-    theme(axis.text.x = element_text(colour = "black", size = 15, 
-                                     angle = 90, hjust = 0.5, vjust = 0,5),
-          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-          axis.title = element_text(colour = "black", size = 16, face = "bold"),
-          legend.background = element_blank(),
-          legend.key = element_blank(),
-          legend.position = "right",
-          legend.text = element_text(colour = "black", size = 15),
-          legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
-                                    hjust = 0),
-          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
-
-# all contact in one plot
-dt <- df %>% select("wave_0","all_contact_n","non_hh_contact_n","hh_contact_n")
-dt <- melt(dt,id.vars="wave_0")
-
-ggplot(dt, aes( x=wave_0, y=value, colour=variable, fill=variable ))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95))+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean)+
-
-  scale_fill_manual(values = c("#fee8c8","#e7e1ef","#2b8cbe"),
-                    labels =c("all_contact","non_hh_contact", "hh_contact"))+
-  scale_color_manual(values = c("red","purple","blue"),
-                    labels =c("all_contact","non_hh_contact", "hh_contact"))+ # color for mean points
-  
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-  # scale_x_discrete("",labels = c(WAVES))+ #
-  labs(y="Mean_contacts",x="wave")+
-   ggtitle("Mean contacts over time in NRW")+
-   # theme_bw() +
-    theme(axis.text.x = element_text(colour = "black", size = 15, 
-                                     angle = 90, hjust = 0.5, vjust = 0,5),
-          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-          axis.title = element_text(colour = "black", size = 16, face = "bold"),
-          legend.background = element_blank(),
-          legend.key = element_blank(),
-          legend.position = "right",
-          legend.text = element_text(colour = "black", size = 15),
-          # legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          legend.title = element_blank(),
-          
-          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
-                                    hjust = 0.5),
-          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
-rm(dt)
-
-
-
-```
-
-##non_hh contact
-```{r}
-
-# all contact in one plot
-dt <- df %>% select("wave_0","all_contact_n","non_hh_contact_n","hh_contact_n")
-dt <- melt(dt,id.vars="wave_0")
-
-ggplot(dt, aes( x=wave_0, y=value, colour=variable, fill=variable ))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95))+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean)+
-
-  scale_fill_manual(values = c("#fee8c8","#e7e1ef","#2b8cbe"),
-                    labels =c("all_contact","non_hh_contact", "hh_contact"))+
-  scale_color_manual(values = c("red","purple","blue"),
-                    labels =c("all_contact","non_hh_contact", "hh_contact"))+ # color for mean points
-  
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-  # scale_x_discrete("",labels = c(WAVES))+ #
-  labs(y="Mean_contacts",x="wave")+
-   ggtitle("Mean contacts over time in NRW")+
-   # theme_bw() +
-    theme(axis.text.x = element_text(colour = "black", size = 15, 
-                                     angle = 90, hjust = 0.5, vjust = 0,5),
-          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-          axis.title = element_text(colour = "black", size = 16, face = "bold"),
-          legend.background = element_blank(),
-          legend.key = element_blank(),
-          legend.position = "right",
-          legend.text = element_text(colour = "black", size = 15),
-          # legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          legend.title = element_blank(),
-          
-          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
-                                    hjust = 0.5),
-          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
-rm(dt)
-
-
-```
-
-
-
-##Is a person has the same trend of contact?
-"When restrictions get lifted, one sits at home and doing a survey becomes far more boring than going to a pub, etc. Finally seeing all the people that you haven't been able to see. So there's a difficulty there with fatigue and actually capturing people that might have the most amount of contacts."
-
-```{r}
-
-min_number_waves=29
-df <- get_contacts(df,waves=c(1:current_wave),min.waves=min_number_waves)
-
-unique(df$new_id)
-rep_n <- unique(df$new_id) #vector store respondents who attend at least min_number_waves
-# rep_n <- rep_n[22] # to see individual seperately4
-
-
-#method1:
-# plot mean contact
-ggplot(df%>%filter(new_id %in% rep_n), aes(x=wave_0, y=all_contact_n_Q75))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95), fill="lightblue")+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean, color="red")+
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-  coord_cartesian( ylim = c(0, 6))+
-  # scale_x_discrete("",labels = c(WAVES))+ #
-  labs(y="Mean_all_contact_n_Q75",x="wave")+
-  ggtitle("All contact")+
-   # theme_bw() +
-    theme(axis.text.x = element_text(colour = "black", size = 15, 
-                                     angle = 90, hjust = 0.5, vjust = 0,5),
-          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-          axis.title = element_text(colour = "black", size = 16, face = "bold"),
-          legend.background = element_blank(),
-          legend.key = element_blank(),
-          legend.position = "right",
-          legend.text = element_text(colour = "black", size = 15),
-          legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
-                                    hjust = 0),
-          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
-
-# plot mean contact_hh
-ggplot(df%>%filter(new_id %in% rep_n), aes(x=wave_0, y=hh_contact_n))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95), fill="lightblue")+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean, color="red")+
-  scale_x_continuous(breaks = seq(1,current_wave,2))+
-   coord_cartesian( ylim = c(0, 6))+
-  labs(y="Mean_contact_hh",x="Wave")+
-  ggtitle("Household contact")+
-   # theme_bw() +
-    theme(axis.text.x = element_text(colour = "black", size = 15, 
-                                     angle = 90, hjust = 0.5, vjust = 0,5),
-          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-          axis.title = element_text(colour = "black", size = 16, face = "bold"),
-          legend.background = element_blank(),
-          legend.key = element_blank(),
-          legend.position = "right",
-          legend.text = element_text(colour = "black", size = 15),
-          legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
-                                    hjust = 0),
-          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
-# plot mean contact_non_hh
-ggplot(df, aes(x=wave_0, y=non_hh_contact_n_Q75))+ 
+ggplot(df_rep, aes(x=wave_0, y=non_hh_contact_n))+ 
     stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
                  fun.args=list(conf.int=0.95), fill="lightblue")+
     stat_summary(geom="line", fun=mean, linetype="dashed")+
@@ -2556,7 +2594,7 @@ ggplot(df, aes(x=wave_0, y=non_hh_contact_n_Q75))+
           strip.text = element_text(colour = "black", size = base_size, face = "bold"))
 
 # all contact in one plot
-dt <- df%>%filter(new_id %in% rep_n) %>% select("wave_0","all_contact_n_Q75","non_hh_contact_n_Q75","hh_contact_n")
+dt <- df_rep%>%filter(new_id %in% rep_n) %>% select("wave_0","all_contact_n","non_hh_contact_n","hh_contact_n")
 
 dt <- melt(dt,id.vars="wave_0")
 
@@ -2594,21 +2632,16 @@ rm(dt)
 
 #Contact matrices
 Why age group have the answer "Dont't know" and " Prefer not to answer"
-#  preparation
+##  preparation
 
 ```{r preparation}
 
-# dt_outside_all_c <- dt_outside_all
-# 
-# # final (mit dieser Variable arbeiten!)
-# dt_outside_all_c <- rbind(dt_outside_all_2, group_contacts_all)
-# 
-# dt_outside_all_c$age_group[dt_outside_all_c$age_group=="85 years or older"] <- "85+" 
-# dt_outside_all_c$age_group[dt_outside_all_c$age_group == "Under 1"] <- "<1" 
-# dt_outside_all_c$age_group[dt_outside_all_c$age_group=="Don’t know"|dt_outside_all_c$age_group=="Prefer not to answer"] <- NA
- 
-
 # truncate group contact
+
+# the truncation done before is for a whole group (school, work,else), not age group separately
+# for the contact matrix, the truncation is for specific age group to later combine with individual contacts
+# However, should think about truncation in a consistent way ?????
+
 df$Q75_u18_work[df$Q75_u18_work>50] <- 50
 df$Q75_1864_work[df$Q75_1864_work>50] <- 50
 df$Q75_o64_work[df$Q75_o64_work>50] <- 50
@@ -2672,7 +2705,7 @@ df_else_1864 <- df %>%
 group_contacts_else_1864 <- df_else_1864 %>% uncount(Q75_1864_else, TRUE)
 group_contacts_else_1864$age_group <- sample(18:64,dim(group_contacts_else_1864)[1], rep=TRUE)
 
-df_else_o64 <- wave_0 %>%
+df_else_o64 <- df %>%
   filter(Q75_o64_else > 0 & Q75_o64_else < 51) %>%
 select(new_id, wave_0,age_group, Q75_o64_else)
 group_contacts_else_o64 <- df_else_o64 %>% uncount(Q75_o64_else, TRUE)
@@ -2757,17 +2790,17 @@ group_contacts_all$age_group[group_contacts_all$age_group== 85 | group_contacts_
                              group_contacts_all$age_group== 89 | group_contacts_all$age_group== 90] <- "85+"
 
 
-# combine group contact (individualization) into non_hh contact
+# combine group contact (individualizied) into non_hh contact
 keeps <- c("new_id","wave", "age_group")
 dt_outside_all_c <- dt_outside_all[ , keeps, drop = FALSE]
-colnames(dt_outside_all_c) <- c("new_id","wave_0", "age_group") # rename wave to wave_0 to be in line with fowlling codes
+colnames(dt_outside_all_c) <- c("new_id","wave_0", "age_group") # rename wave to wave_0 to be in line with supsequent codes
 
 dt_outside_all_c <- rbind(dt_outside_all_c, group_contacts_all) 
 
 # add hh_contact
 dt_hh_all_c <- dt_hh_all %>% 
   select(new_id, wave, age_group)
-colnames(dt_hh_all_c ) <- c("new_id","wave_0", "age_group") # rename wave to wave_0 to be in line with fowlling codes
+colnames(dt_hh_all_c ) <- c("new_id","wave_0", "age_group") # rename wave to wave_0 to be in line with following codes
 
 
 dt_all_c <- rbind(dt_outside_all_c, dt_hh_all_c)
@@ -2788,7 +2821,12 @@ table1::table1(~age_group  |wave_0, dt_all_c, caption = "Check")
 
 ```{r contact matrix for wave 1 densely}
 
-wave_n <- 1
+plot_list <- list()
+
+wave<- 32
+
+for ( wave_n in 1: wave ){
+  
 # participant dataset 
 part_matrix <- d_self_all %>% 
   select(new_id, wave_0, age_group)%>%
@@ -2798,9 +2836,9 @@ part_matrix <- d_self_all %>%
 # contacts dataset
 contact_matrix <-dt_all_c %>% 
   select(new_id, wave_0,age_group,contains("contact_5")) %>%
-  filter(wave_0== wave_n) 
+  filter(wave_0 == wave_n) 
 
-# df bearbeiten
+# Assign age group as a single value
 part_matrix <- part_matrix %>% mutate(part_age =
                                                   case_when(age_group == "Under 1" ~ 2,
                                                             age_group == "1-4" ~ 2, 
@@ -2840,30 +2878,30 @@ contact_matrix <- contact_matrix %>% mutate(cnt_age =
 # part_id and survey_object are required for the contact matrix 
 colnames(part_matrix)[1] <- "part_id"
 colnames(contact_matrix)[1] <- "part_id" #out_contacts = non_hh-contacts
-survey_object_den1  <- survey(part_matrix, contact_matrix)
+survey_object  <- survey(part_matrix, contact_matrix)
 
-# contact matri
-cm_den1 <- contact_matrix(survey_object_den1, age.limits = c(0, 14, 19, 24, 34, 44, 54, 64, 75),  missing.participant.age = c("remove"),
+# contact matrix
+cm <- contact_matrix(survey_object, age.limits = c(0, 14, 19, 24, 34, 44, 54, 64, 75),  missing.participant.age = c("remove"),
                           missing.contact.age = c("remove"), symmetric = TRUE)
 
 # output gespeichert, data_cm wird für heatmap benötigt
-data_cm_den1 <- cm_den1$matrix
+data_cm <- cm$matrix
 
 #Plot
-melt_cm_den1 <- reshape2::melt(data_cm_den1)
+melt_cm <- reshape2::melt(data_cm)
 
-melt_cm_den1$Var1[melt_cm_den1$Var1 ==  1] <- "0-14"
-melt_cm_den1$Var1[melt_cm_den1$Var1 ==  2] <- "15-19"
-melt_cm_den1$Var1[melt_cm_den1$Var1 ==  3] <- "20-24"
-melt_cm_den1$Var1[melt_cm_den1$Var1 ==  4] <- "25-34"
-melt_cm_den1$Var1[melt_cm_den1$Var1 ==  5] <- "35-44"
-melt_cm_den1$Var1[melt_cm_den1$Var1 ==  6] <- "45-54"
-melt_cm_den1$Var1[melt_cm_den1$Var1 ==  7] <- "55-64"
-melt_cm_den1$Var1[melt_cm_den1$Var1 ==  8] <- "65-74"
-melt_cm_den1$Var1[melt_cm_den1$Var1 ==  9] <- "75+"
+melt_cm$Var1[melt_cm$Var1 ==  1] <- "0-14"
+melt_cm$Var1[melt_cm$Var1 ==  2] <- "15-19"
+melt_cm$Var1[melt_cm$Var1 ==  3] <- "20-24"
+melt_cm$Var1[melt_cm$Var1 ==  4] <- "25-34"
+melt_cm$Var1[melt_cm$Var1 ==  5] <- "35-44"
+melt_cm$Var1[melt_cm$Var1 ==  6] <- "45-54"
+melt_cm$Var1[melt_cm$Var1 ==  7] <- "55-64"
+melt_cm$Var1[melt_cm$Var1 ==  8] <- "65-74"
+melt_cm$Var1[melt_cm$Var1 ==  9] <- "75+"
 
 
-levels(melt_cm_den1$contact.age.group) <- list("0-14" = "[0,14)", "15-19" = "[14,19)", 
+levels(melt_cm$contact.age.group) <- list("0-14" = "[0,14)", "15-19" = "[14,19)", 
                                                "20-24" = "[19,24)", "25-34" = "[24,34)", 
                                                "35-44" = "[34,44)", "45-54" = "[44,54)",
                                                 "55-64" = "[54,64)", "65-74" = "[64,75)",
@@ -2871,33 +2909,8 @@ levels(melt_cm_den1$contact.age.group) <- list("0-14" = "[0,14)", "15-19" = "[14
 
 
 
-
-# aa1<- ggplot(melt_cm_den1, aes(contact.age.group, Var1)) +
-#   geom_tile(aes(fill = value)) +
-#   coord_equal() +
-#   ggtitle("Wave 1 in densely populated areas \n (03/03/21 - 10/03/21)") +
-#   geom_text(aes(label=sprintf("%0.1f", round(value, digits = 2))), size = 2) +
-#   scale_fill_gradient2(low = "#2000CD",
-#                        # mid = "white",
-#                        high = "#D60C00", limits = c(0,4), midpoint = 2) +
-#   guides(fill = guide_colourbar(barwidth = 0.5,
-#                                 barheight = 20, title = "Contacts")) +
-#   theme(legend.position = "none")+
-#   theme(plot.title = element_text(size = 6, face = "bold"))+
-#   theme(plot.title = element_text(hjust = 0.5)) +
-#   theme(axis.title.y=element_blank()) +
-#   theme(axis.title.x = element_blank()) +
-#   theme(panel.background = element_blank()) +
-#   theme(axis.ticks.x = element_blank()) +
-#   theme(axis.ticks.y = element_blank()) +
-#   theme(axis.text.x = element_text(size = 5, angle = 90, vjust = 0.5)) +
-#   theme(axis.text.y = element_text(size = 5))
-
-
-
-
-#library(cowplot)
-legend_matrix<- ggplot(melt_cm_den1, aes(contact.age.group, Var1)) +
+# plot 
+p<- ggplot(melt_cm, aes(contact.age.group, Var1)) +
   geom_tile(aes(fill = value)) +
   coord_equal() +
   ggtitle(paste0("Wave ", wave_n)) +
@@ -2915,11 +2928,15 @@ legend_matrix<- ggplot(melt_cm_den1, aes(contact.age.group, Var1)) +
         axis.ticks.x = element_blank(),
         panel.background = element_blank())
   
-legend_matrix
+plot_list[[wave_n]] = p # store plots in the list
+}
 
-one_legend <- cowplot::get_legend(legend_matrix)
 
-one_legend
+# plot from the plot_list
+do.call(grid.arrange,plot_list[1:9])
+do.call(grid.arrange,plot_list[10:18])
+do.call(grid.arrange,plot_list[19:27])
+do.call(grid.arrange,plot_list[28:32])
 
 ```
 
