@@ -1,0 +1,466 @@
+---
+title: "COVID-19 in NRW"
+author: "Thi Phuong Huynh"
+date: "2/7/2022"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    toc_float: true # able of contents to the left, visible even when the document is scrolled
+---
+
+# set up
+
+Date: <b>`r format(Sys.Date(), "%B %d, %Y")`</b>
+
+All computations were performed with `r R.Version()$version.string`.
+
+
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(fig.retina = 1, fig.height = 7, fig.width = 14,
+                      echo = FALSE, message = FALSE, warning = FALSE,
+                      results='hide')
+Sys.setlocale("LC_TIME", "C")
+BEGIN_RMD <- Sys.time() # Keeping track of running time
+options(warn = 1) # If warn is one, warnings are printed as they occur.
+
+
+
+#Loading package
+library(reshape2, ggplot2)
+library('ggplot2')
+library('scales')
+library(tidyverse)
+library(surveillance)
+library(lubridate)
+library(broom)
+library(runjags)
+# library(rjags) check !
+library(EpiEstim)
+library(incidence)
+library(epitools)
+library(zoo) # rolling average
+
+```
+
+#changeable variable
+
+```{r}
+
+#pop
+NRW_pop <- 17925570
+NRW_under12 <- 2014762
+NRW_vacc <- NRW_pop - NRW_under12
+start_day <- as.Date("2020-02-27")# data before this day won't be counted
+current_date <-as.Date("2021-12-29") # data is available up to this date
+
+colfunc <- colorRampPalette(c("black", "white"))
+colfunc(19)
+palette <- c("red","#003366", "olivedrab3","#336699", "#CCFFFF", "#028482", "#663399", "#990033", "#FF3333", "royalblue1","#FF9900", 
+             "#266A2E", "#55D43F", "#404040", "#C87533", "#DCDCDC", "#FFDE00", "#F1B2E1", "#FF717E", "maroon3")
+# print(palette)
+# scales::show_col(palette)
+
+# sequencial palette
+palette1 <- c("#8e0152","#c51b7d", "#de77ae","#f1b6da", "#fde0ef",
+              "#276419", "#4d9221", "#7fbc41","#b8e186","#e6f5d0",
+              "#67001f", "#b2182b", "#d6604d", "#f4a582", "#fddbc7",
+              "#e0e0e0", "#bababa", "#878787", "#4d4d4d", "#1a1a1a")
+
+
+
+# print(palette1)
+# scales::show_col(palette1)
+
+
+```
+
+# Data
+
+```{r read in}
+# Linelist_covid-19 in NRW
+# dat = read.csv("C:/Users/huynh/sciebo/NRW_descriptive/data/data_public.csv", sep=";")
+dat = read.csv("C:/Users/huynh/sciebo/NRW_descriptive/data/211229_Fall-Liste.csv", sep=";", encoding="UTF-8")# encoding="UTF-8" : umlaut character
+
+# age distribution in NRW
+# age_nrw = read.csv("C:/Users/huynh/sciebo/NRW_descriptive/data/NRW_population_by agegroup.csv")
+## age: 90 mean 90 and older
+age_nrw = read.csv("C:/Users/huynh/sciebo/NRW_descriptive/data/NRW_population_by age.csv") 
+
+
+```
+
+##cleaning data
+
+```{r}
+
+# Linelist_covid-19 in NRW
+colnames(dat)
+dat <- dat %>% select(-contains("InterneRef")) # remove a col
+names(dat) <- c("rep_date","county", "disease_start", "age",'hospitalized') #rename
+
+dat$rep_date<- as.Date(dat$rep_date, "%Y-%m-%d")
+dat$disease_start<- as.Date(dat$disease_start, "%Y-%m-%d")
+dat$county <- as.factor(dat$county)
+dat$rep_week <- as.integer((as.Date(dat$rep_date)-as.Date("2020-01-01"))/7+1)
+dat$maxrepweek <- max(dat$rep_week) 
+
+#revert week (number) to start date of a week: 1/1/2020 is on Wednesday 
+## So Wednesday is start of a week
+dat$rep_week_date <- lubridate::ymd( "2020-01-01" ) + lubridate::weeks(dat$rep_week-1)# indicated date starts week 2 of the year
+dat$rep_week_date <- as.Date(dat$rep_week_date)
+
+
+# age group
+dat$agegroup<- dat$age
+dat$agegroup <- cut(dat$agegroup, breaks=c(-Inf, 4, 9,14, 19,24,29,34,39,44,49,54,59,64,69,74,79,84,89, Inf))
+dat$agegroup <- factor(dat$agegroup, levels=c("(-Inf,4]", "(4,9]", "(9,14]", "(14,19]", "(19,24]", "(24,29]", "(29,34]", "(34,39]", "(39,44]", "(44,49]", "(49,54]", "(54,59]", "(59,64]", "(64,69]", "(69,74]", "(74,79]", "(79,84]", "(84,89]",  "(89, Inf]"),
+                       labels=c("0-4","5-9","10-14", "15-19", "20-24", "25-29", "30-34", "35-39",
+                                "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74",
+                                "75-79", "80-84", "85-89", ">90"), ordered=T)
+# 
+# # Some logical cleanining:
+# #set the rep_date for all obs to missing with reporting dates before 20th of Feb
+# dat$rep_date[dat$rep_date<"2020-02-20"]<-NA
+# 
+# #set all disease start dates to missing if disease start before 1st of Feb or after date of current_date
+# dat$disease_start[dat$disease_start<"2020-02-01"]<-NA
+# dat$disease_start[dat$disease_start>dat$maxrepdate]<-NA
+# 
+# #set all disease start dates to missing for which the disease start date was more than 7 days after the rep date
+# dat$disease_start[as.numeric(dat$rep_date - dat$disease_start) < -7] <- NA
+# dat$disease_start[as.numeric(dat$rep_date - dat$disease_start) > 30] <- NA
+# 
+# #set implausible age to NA
+# dat$age2<-dat$age
+# dat$age2[dat$age<0 | dat$age>110] <- NA
+
+
+# age distribution in NRW
+
+age_nrw$agegroup<- age_nrw$age
+age_nrw$agegroup <- cut(age_nrw$agegroup, breaks=c(-Inf, 4, 9,14, 19,24,29,34,39,44,49,54,59,64,69,74,79,84,89, Inf))
+age_nrw$agegroup <- factor(age_nrw$agegroup, levels=c("(-Inf,4]", "(4,9]", "(9,14]", "(14,19]", "(19,24]", "(24,29]", "(29,34]", "(34,39]", "(39,44]", "(44,49]", "(49,54]", "(54,59]", "(59,64]", "(64,69]", "(69,74]", "(74,79]", "(79,84]", "(84,89]",  "(89, Inf]"),
+                       labels=c("0-4","5-9","10-14", "15-19", "20-24", "25-29", "30-34", "35-39",
+                                "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74",
+                                "75-79", "80-84", "85-89", ">90"), ordered=T)
+
+
+age_nrw <- age_nrw %>%group_by(agegroup)%>%
+  dplyr::summarise(pop_n =sum(pop_n))
+
+                 
+dat<- merge(dat, age_nrw, by="agegroup", all=T)# add nrw pop distribution by age
+
+
+
+# remove rep week 8 becauss of insufficient data 
+dat <- dat %>% filter(rep_week >=9)#
+
+
+
+```
+
+##Summary data at date level
+
+```{r}
+##sum cases of each agegroup by date
+dat_date <- dat %>%
+  group_by(rep_date,rep_week_date,rep_week,agegroup) %>%
+  dplyr::summarise(case=n()) %>% #sum cases per date by age groups
+  ungroup() 
+
+## sum cases of all age by week
+dat_allAge <- dat %>%
+  group_by(rep_date,rep_week_date,rep_week) %>%
+  dplyr::summarise(case=n()) %>% # sum cases per date in all age groups
+  ungroup()%>%
+  mutate(agegroup = "allAge")
+dat_allAge <- dat_allAge[,c(1:3,5,4)] #arrange col order as in 'dat_date' for merging data later
+
+dat_date <- rbind(dat_date, dat_allAge)# add cases of allAge
+
+# sum pop of all age
+age_nrw_all <- age_nrw %>%dplyr::summarise(pop_n =sum(pop_n))%>%
+  ungroup()%>%
+  mutate(agegroup = "allAge")
+age_nrw_all <- age_nrw_all[,c(2,1)] #arrange col order as in 'age_nrw' for merging data later
+age_nrw_all <- rbind(age_nrw, age_nrw_all) # add all age pop row
+
+
+dat_date <- merge(dat_date,age_nrw_all, by ="agegroup") # add pop to dat_date for weghing
+
+# rolling average
+
+dat_date <- dat_date %>%mutate(
+      case_7da = zoo::rollmean(case, k = 7, fill = NA))
+
+
+dat_date$case_per100k<- dat_date$case/dat_date$pop_n*100000
+
+
+#division 0
+dat_date$case_per100k_grouped <- cut(dat_date$case_per100k, breaks=c(-Inf, 5, 10, 15, 20, 35,50,100,150,200,300,Inf))
+dat_date$case_per100k_grouped <- factor(dat_date$case_per100k_grouped, levels=c("(-Inf,5]", "(5,10]", "(10,15]", "(15,20]", "(20,35]", "(35,50]","(50,100]", "(100,150]", "(150,200]", "(200,300]", "(300, Inf]"),
+                      labels=c("0-5",">5-10",">10-15", ">15-20", ">20-35", ">35-50", ">50-100", ">100-150",">150-200", ">200-300", ">300"), ordered=T)
+
+
+
+
+```
+
+
+##Summary data at week level
+ A long week each agegroup, Allage (new row)is also added. 
+
+```{r}
+##sum cases of each agegroup by week
+dat_week <- dat %>%
+  group_by(rep_week_date,rep_week,agegroup) %>%
+  dplyr::summarise(case=n()) %>% #sum cases per week by age groups
+  ungroup() 
+
+## sum cases of all age by week
+dat_allAge <- dat %>%
+  group_by(rep_week_date,rep_week) %>%
+  dplyr::summarise(case=n()) %>% # sum cases per week in all age groups
+  ungroup()%>%
+  mutate(agegroup = "allAge")
+
+dat_allAge <- dat_allAge[,c(1,2,4,3)] #arrange col order as in 'dat_week' for merging data later
+
+dat_week <- rbind(dat_week, dat_allAge)# add cases of allAge
+
+dat_week <- merge(dat_week,age_nrw_all, by ="agegroup") # add pop to dat_week for weghing
+
+# 
+# dat_week <- dat_week %>% group_by(rep_week) %>% mutate(percent_repweek=case/sum(case))
+# 
+# 
+# # Summary data at week level
+# dat_date <- dat %>% group_by(rep_date, agegroup) %>% dplyr::summarise(case=n())
+# dat_date <- dat_date %>% filter(rep_date > start_day)
+# dat_date <- dat_date %>% group_by(rep_date) %>% mutate(percent_repdate=case/sum(case))
+
+
+dat_week$case_per100k<- dat_week$case/dat_week$pop_n*100000
+
+
+#division 0
+dat_week$case_per100k_grouped <- cut(dat_week$case_per100k, breaks=c(-Inf, 5, 10, 15, 20, 35,50,100,150,200,300,Inf))
+dat_week$case_per100k_grouped <- factor(dat_week$case_per100k_grouped, levels=c("(-Inf,5]", "(5,10]", "(10,15]", "(15,20]", "(20,35]", "(35,50]", "(50,100]", "(100,150]", "(150,200]", "(200,300]", "(300, Inf]"),
+                            labels=c("0-5",">5-10",">10-15", ">15-20", ">20-35", ">35-50", ">50-100", ">100-150", ">150-200", ">200-300", ">300"), ordered=T)
+
+
+
+
+```
+
+# NRW pop distribution
+```{r}
+# pop distribution  
+  
+age_nrw %>%
+  ggplot(aes(x = agegroup, y= pop_n/1000, fill=agegroup)) + 
+  geom_bar(stat="identity")+
+  # facet_grid(row = vars(agegroup))+
+  # scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values=palette1, name="Age group") +
+  labs(y = "Number of inhabitants [thousand]") +
+  ggtitle("NRW_ pop distribution")+
+  theme(axis.text.x = element_text(colour = "black", size = 10, 
+                                     angle = 90, hjust = 0.5, vjust = 0,5),
+          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+          axis.title = element_text(colour = "black", size = 15, face = "bold"),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          legend.position = "right",
+          legend.text = element_text(colour = "black", size = 15),
+          legend.title = element_text(colour = "black", size = 16, face = "bold"),
+          plot.title = element_text(colour = "black", size = 14, face = "bold",
+                                    hjust = 0.5),
+          strip.text = element_text(colour = "black", size = 12, face = "bold"))
+
+
+```
+
+
+# Cases over time 
+
+## Heatmap: by age
+
+```{r}
+dat_week %>% 
+  filter(!is.na(agegroup)) %>%
+  ggplot(aes(rep_week_date, agegroup)) +
+  geom_tile(aes(fill=case_per100k_grouped), colour = "black")+
+  geom_text(aes(label = round(case_per100k)), size = 2, colour = "#585858") + #size of number in each cell
+  #division 0
+  scale_fill_manual(values=c("#FFF7FC","#EDE7F3", "#D0D1E6", "#A6BDDC", "#74AAD0",
+                             "#3691C0", "#0470B0", "#044E7B", "#333F50", "#404040", "#262626")) +
+  ## division 1,2,3
+  # scale_fill_brewer(palette = "Blues")+ #BuPu, BuGn, Blues, Oranges,Reds,....
+  labs(fill = "incidence \n(per 100k)", x="")+
+  ggtitle("NRW_ weekly COVID-19 Incidence per 100k 
+")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"),
+        legend.position="right",
+        legend.title=element_text(size=18, colour = "black", face = "bold") ,
+        legend.text=element_text(size=17, colour = "black"),
+        axis.title = element_text(size=18, face="bold", colour = "black"),
+        plot.title = element_text(face="bold", size=15, hjust=0.5),
+        axis.text.x = element_text(size = 10,  hjust = 1, colour = "black", angle = 30, face = "bold"),
+        axis.text.y = element_text(size = 10, face = "bold")) + 
+  scale_x_date(date_labels="%d-%m-%Y", date_breaks = "30 days", expand = c(0, 0)) +
+  # scale_x_continuous(expand=c(0,0)) +
+  scale_y_discrete(expand=c(0,0))
+
+# ggsave("Heatmap.png", plot = last_plot(), width=18, height=8, path = "C:/Users/Tom/Documents/Praktikum M|nster/Covimod/plots")
+
+```
+
+
+
+## Histogram : proportion by age
+
+```{r}
+
+
+#create data structure for histogram
+#case prop_all age group################################
+histo_setup <- dat%>%
+  group_by(rep_week,rep_week_date, agegroup,pop_n) %>% dplyr::summarise(case_n=n()) 
+# histo_setup$maxrepweek <- max(histo_setup$rep_week)
+
+
+dat%>%
+  group_by(rep_week,rep_week_date, agegroup,pop_n) %>% dplyr::summarise(case_n=n())%>%
+  ggplot(aes(x=rep_week_date, y=case_n/pop_n*100000, fill=agegroup)) + # scale by age's pop 
+  geom_bar(position="fill", stat="identity")+
+  scale_y_continuous(labels = scales::percent_format()) + 
+  scale_fill_manual(values=palette, name="Age group") +
+   labs(y="Propotion of reported case per 100k",x="Start date of each week")+
+  ggtitle(" Covid-19 reported  weekly in NRW")+
+  scale_x_date(date_labels="%d-%m-%Y", date_breaks = "15 days", expand = c(0, 0))+
+theme(axis.text.x = element_text(colour = "black", size = 10, 
+                                     angle = 90, hjust = 0.5, vjust = 0,5),
+          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+          axis.title = element_text(colour = "black", size = 15, face = "bold"),
+          legend.background = element_blank(),
+          legend.key = element_blank(),
+          legend.position = "right",
+          legend.text = element_text(colour = "black", size = 15),
+          legend.title = element_text(colour = "black", size = 16, face = "bold"),
+          plot.title = element_text(colour = "black", size = 14, face = "bold",
+                                    hjust = 0.5),
+          strip.text = element_text(colour = "black", size = 12, face = "bold"))
+
+
+```
+
+
+
+## Regardless of age
+### daily
+
+```{r}
+# roling average
+
+
+ dat%>%
+  group_by(rep_date) %>% dplyr::summarise(case_n=n())%>% #count case by week
+  ggplot()+
+  geom_line(aes(y=case_n/NRW_pop*100000, x=rep_date), size=1, colour="blue") +
+  # geom_ribbon(data=data, aes(y=median,x=date, ymin = p2.5, ymax = p97.5), fill = "#990033", alpha=0.25)+
+  # real data
+  # geom_line(data=data_observed%>%filter(rep_date >= Date_today & rep_date <= Date_today +14), aes(y=avg_inf,x= rep_date), size=2, colour="#990033") +
+  scale_x_date(date_labels="%d-%m-%Y", date_breaks = "14 days", expand = c(0, 0))+
+  labs(x = "Time (start day of a week)", y = "Reported cases per 100k pop.") +
+  ggtitle("COVID-19 in NRW_ daily report")+
+  theme_classic()+
+   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+         axis.title = element_text(colour = "black", size = 15, face = "bold"),
+         legend.background = element_blank(),
+         legend.key = element_blank(),
+         legend.position = "right",
+         legend.text = element_text(colour = "black", size = 15),
+         legend.title = element_text(colour = "black", size = 16, face = "bold"),
+         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+         strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+  
+
+# ggsave(paste0(path_results,"predict_Inc.vs.report ", Date_today +1,".png"),com_FIG_1, width=13, height=8)
+
+```
+
+### weekly
+
+```{r}
+ 
+ 
+dat%>%
+  group_by(rep_week_date) %>% dplyr::summarise(case_n=n())%>% #count case by week
+  ggplot()+
+  geom_line(aes(y=case_n/NRW_pop*100000, x=rep_week_date), size=1, colour="blue") +
+  # geom_ribbon(data=data, aes(y=median,x=date, ymin = p2.5, ymax = p97.5), fill = "#990033", alpha=0.25)+
+  # real data
+  # geom_line(data=data_observed%>%filter(rep_date >= Date_today & rep_date <= Date_today +14), aes(y=avg_inf,x= rep_date), size=2, colour="#990033") +
+  scale_x_date(date_labels="%d-%m-%Y", date_breaks = "14 days", expand = c(0, 0))+
+  labs(x = "Time (start day of a week)", y = "Reported cases per 100k pop.") +
+  ggtitle("COVID-19 in NRW_ weekly report")+
+  theme_classic()+
+   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+         axis.title = element_text(colour = "black", size = 15, face = "bold"),
+         legend.background = element_blank(),
+         legend.key = element_blank(),
+         legend.position = "right",
+         legend.text = element_text(colour = "black", size = 15),
+         legend.title = element_text(colour = "black", size = 16, face = "bold"),
+         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+         strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+  
+
+# ggsave(paste0(path_results,"predict_Inc.vs.report ", Date_today +1,".png"),com_FIG_1, width=13, height=8)
+
+
+```
+
+#case
+
+```{r}
+
+#group data by county########
+dat_county <- dat %>% group_by(county) %>%
+  dplyr::summarise(case=n())%>%
+  ungroup() 
+
+dat_county_wave1 <- dat %>%filter(rep_date <= as.Date("2020-06-30")) %>% group_by(county) %>%
+  dplyr::summarise(case_wave1=n())%>%
+  ungroup() 
+dat_county_wave2 <- dat %>%filter(rep_date > as.Date("2020-06-30")&rep_date <= as.Date("2021-02-22")) %>% group_by(county) %>%
+  dplyr::summarise(case_wave2=n())%>%
+  ungroup() 
+dat_county_wave3 <- dat %>%filter(rep_date > as.Date("2021-02-22")&rep_date <= as.Date("2021-07-12")) %>% group_by(county) %>%
+  dplyr::summarise(case_wave3=n())%>%
+  ungroup() 
+dat_county_wave4 <- dat %>%filter(rep_date > as.Date("2021-07-12")&rep_date <= as.Date("2021-12-30")) %>% group_by(county) %>%
+  dplyr::summarise(case_wave4=n())%>%
+  ungroup() 
+
+# dat_county1 <- left_join (dat_county,dat_county_wave1,dat_county_wave2,dat_county_wave3,dat_county_wave4, by="county")
+dat_county <- left_join (dat_county,dat_county_wave1)
+dat_county <- left_join (dat_county,dat_county_wave2)
+dat_county <- left_join (dat_county,dat_county_wave3)
+dat_county <- left_join (dat_county,dat_county_wave4)
+
+# write.csv(dat_county,"C:/Users/huynh/sciebo/NRW_descriptive/data/case_county_waves.csv")
+
+
+```
+
