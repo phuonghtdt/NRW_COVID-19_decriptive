@@ -2354,7 +2354,7 @@ ggsave(transport_per_wave_all, width=10, height=7)
 
 #method1:
 # plot mean contact
-ggplot(df, aes(x=wave_date, y=all_contact_n))+ 
+all_c <- ggplot(df, aes(x=wave_date, y=all_contact_n))+ 
     stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
                  fun.args=list(conf.int=0.95), fill="lightblue")+
     stat_summary(geom="line", fun=mean, linetype="dashed")+
@@ -2377,59 +2377,65 @@ ggplot(df, aes(x=wave_date, y=all_contact_n))+
                                     hjust = 0),
           strip.text = element_text(colour = "black", size = base_size, face = "bold"))
 
+# all_c
+
 # plot mean contact_hh
-ggplot(df, aes(x=wave_date, y=hh_contact_n))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95), fill="lightblue")+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean, color="red")+
+hh_c <- ggplot(df, aes(x=wave_date, y=hh_contact_n))+ 
+  stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+               fun.args=list(conf.int=0.95), fill="lightblue")+
+  stat_summary(geom="line", fun=mean, linetype="dashed")+
+  stat_summary(geom="point", fun=mean, color="red")+
   # scale_x_continuous(breaks = seq(1,current_wave,2))+
-   coord_cartesian( ylim = c(0, 6))+
+  coord_cartesian( ylim = c(0, 6))+
   labs(y="Mean_contact_hh",x="Start date of each week")+
   ggtitle("Household contact")+
-    scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
- theme_classic()+
-    theme(axis.text.x = element_text(colour = "black", size = 10, 
-                                     angle = 90, hjust = 0.5, vjust = 0,5),
-          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-          axis.title = element_text(colour = "black", size = 15, face = "bold"),
-          legend.background = element_blank(),
-          legend.key = element_blank(),
-          legend.position = "right",
-          legend.text = element_text(colour = "black", size = 15),
-          legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
-                                    hjust = 0),
-          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+  scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, 
+                                   angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = "right",
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+                                  hjust = 0),
+        strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+# hh_c 
+
 # plot mean contact_non_hh
-ggplot(df, aes(x=wave_date, y=non_hh_contact_n))+ 
-    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
-                 fun.args=list(conf.int=0.95), fill="lightblue")+
-    stat_summary(geom="line", fun=mean, linetype="dashed")+
-    stat_summary(geom="point", fun=mean, color="red")+
+non_hh_c <- ggplot(df, aes(x=wave_date, y=non_hh_contact_n))+ 
+  stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+               fun.args=list(conf.int=0.95), fill="lightblue")+
+  stat_summary(geom="line", fun=mean, linetype="dashed")+
+  stat_summary(geom="point", fun=mean, color="red")+
   # scale_x_continuous(breaks = seq(1,current_wave,2))+
-   coord_cartesian( ylim = c(0, 6))+
-  labs(y="Mean_contact_non_hh", x="Start date of each week")+
+  coord_cartesian( ylim = c(0, 6))+
+  labs(y="Mean_contact_non_hh", x="Start date of each wave")+
   ggtitle("Non-household contact")+
-    scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
- theme_classic()+
-    theme(axis.text.x = element_text(colour = "black", size = 10, 
-                                     angle = 90, hjust = 0.5, vjust = 0,5),
-          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-          axis.title = element_text(colour = "black", size = 15, face = "bold"),
-          legend.background = element_blank(),
-          legend.key = element_blank(),
-          legend.position = "right",
-          legend.text = element_text(colour = "black", size = 15),
-          legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
-                                    hjust = 0),
-          strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+  scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, 
+                                   angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = "right",
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+                                  hjust = 0),
+        strip.text = element_text(colour = "black", size = base_size, face = "bold"))
+# non_hh_c
+
 # all contact in one plot
 dt <- df %>% select("wave_date","all_contact_n","non_hh_contact_n","hh_contact_n")
 dt <- melt(dt,id.vars="wave_date")
 
-ggplot(dt, aes( x=wave_date, y=value, colour=variable, fill=variable ))+ 
+panel_covimod <- ggplot(dt, aes( x=wave_date, y=value, colour=variable, fill=variable ))+ 
     stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
                  fun.args=list(conf.int=0.95))+
     stat_summary(geom="line", fun=mean, linetype="dashed")+
@@ -2442,8 +2448,8 @@ ggplot(dt, aes( x=wave_date, y=value, colour=variable, fill=variable ))+
   
   # scale_x_continuous(breaks = seq(1,current_wave,2))+
   # scale_x_discrete("",labels = c(WAVES))+ #
-  labs(y="Mean_contacts",x="Start date of each week")+
-   ggtitle("Mean contacts over time in NRW")+
+  labs(y="Mean_contacts",x="Start date of each wave")+
+   ggtitle("Mean contacts over time in NRW (COVIMOD)")+
     scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
  theme_classic()+
     theme(axis.text.x = element_text(colour = "black", size = 10, 
@@ -2452,14 +2458,14 @@ ggplot(dt, aes( x=wave_date, y=value, colour=variable, fill=variable ))+
           axis.title = element_text(colour = "black", size = 15, face = "bold"),
           legend.background = element_blank(),
           legend.key = element_blank(),
-          legend.position = "right",
+          legend.position = c(0.3,0.8),
           legend.text = element_text(colour = "black", size = 15),
           legend.title = element_blank(),
-          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+          plot.title = element_text(colour = "black", size = base_size + 8, face = "bold",
                                     hjust = 0),
           strip.text = element_text(colour = "black", size = base_size, face = "bold"))
 rm(dt)
-
+panel_covimod
 
 
 ```
@@ -2480,16 +2486,16 @@ ggplot(dt, aes( x=wave_date, y=value, colour=variable, fill=variable ))+
     stat_summary(geom="line", fun=mean, linetype="dashed")+
     stat_summary(geom="point", fun=mean)+
 
-  scale_fill_manual(values = c("#fee8c8","#e7e1ef","#2b8cbe"),
+  scale_fill_manual(values = c("#e7e1ef","#fee6ce","#f0f0f0"), # keep 
                     labels =c("non_hh_contact","work_contact","school_contact")
                     )+
-  scale_color_manual(values = c("red","purple","blue"),
+  scale_color_manual(values = c("purple","orange","grey"),
                     labels =c("non_hh_contact","work_contact","school_contact")
                     )+ # color for mean points
   
   scale_x_continuous(breaks = seq(1,current_wave,2))+
   # scale_x_discrete("",labels = c(WAVES))+ #
-  labs(y="Mean_contacts",x="Start date of each week")+
+  labs(y="Mean_contacts",x="Start date of each wave")+
    ggtitle("Mean contacts over time in NRW")+
    scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
  theme_classic()+
@@ -2499,10 +2505,10 @@ ggplot(dt, aes( x=wave_date, y=value, colour=variable, fill=variable ))+
           axis.title = element_text(colour = "black", size = 15, face = "bold"),
           legend.background = element_blank(),
           legend.key = element_blank(),
-          legend.position = "right",
+          legend.position = c(0.3,0.8),
           legend.text = element_text(colour = "black", size = 15),
           legend.title = element_blank(),
-          plot.title = element_text(colour = "black", size = base_size + 4, face = "bold",
+          plot.title = element_text(colour = "black", size = base_size + 8, face = "bold",
                                     hjust = 0),
           strip.text = element_text(colour = "black", size = base_size, face = "bold"))
 rm(dt)
@@ -2925,7 +2931,7 @@ p<- ggplot(melt_cm, aes(contact.age.group, Var1)) +
   geom_text(aes(label=sprintf("%0.1f", round(value, digits = 2))), size = 2) +
   scale_fill_gradient2(low = "#fff5f0",
                        # mid = "white",
-                       high = "#e31a1c", limits = c(0,6), midpoint = 0.5) +
+                       high = "#e31a1c", limits = c(0,6), midpoint = 0.1) +
   guides(fill = guide_colourbar(barwidth = 0.5,
                                 barheight = 5, title = "Contacts")) +
   theme(legend.position = "right")+
@@ -2934,6 +2940,7 @@ p<- ggplot(melt_cm, aes(contact.age.group, Var1)) +
         axis.text.x = element_text(size = 8, face = "bold",angle = 90, vjust = 0.5),
         axis.text.y = element_text(size = 8, face = "bold"),
         axis.ticks.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "cm"), # reduce space for combination plot later
         panel.background = element_blank())
   
 plot_list[[wave_n]] = p # store plots in the list
@@ -2941,15 +2948,26 @@ plot_list[[wave_n]] = p # store plots in the list
 
 
 # plot from the plot_list
-do.call(grid.arrange,plot_list[1:9])
-do.call(grid.arrange,plot_list[10:18])
-do.call(grid.arrange,plot_list[19:27])
-do.call(grid.arrange,plot_list[28:current_wave])
+do.call(grid.arrange,plot_list[1:4])
+do.call(grid.arrange,plot_list[5:8])
+do.call(grid.arrange,plot_list[9:12])
+do.call(grid.arrange,plot_list[13:16])
+do.call(grid.arrange,plot_list[17:20])
+do.call(grid.arrange,plot_list[21:24])
+do.call(grid.arrange,plot_list[25:28])
+do.call(grid.arrange,plot_list[29:32])
+do.call(grid.arrange,plot_list[33:current_wave])
+
+
+# current.mode <- tmap_mode("plot")
+# do.call(tmap_arrange(plot_list[10:18], widths = c(0.5, 0.5)))
+# tmap_mode(current.mode)
+
 
 ```
 
-# Mobility(Net check)
-##data processing
+# Mobility
+## Net check
 
 ```{r}
 
@@ -2969,8 +2987,8 @@ mobi$week_date <-lubridate::ymd("2020-01-01" ) + lubridate::weeks(mobi$week-1)# 
 
 # rolling average
  mobi <- mobi %>%mutate(
-      cx_7da = zoo::rollmean(cx, k = 7, fill = NA),
-      k_7da = zoo::rollmean(k, k = 7, fill = NA))
+      cx_mean7da = zoo::rollmean(cx, k = 7, fill = NA),
+      k_mean7da = zoo::rollmean(k, k = 7, fill = NA))
 
 
 # data: from 27.02.2020 to 26.01.2022. However, for comparison with COVIMOD data, only data from 30.04.2020 to 31.12.2021 is used
@@ -2980,116 +2998,74 @@ mobi1 <- mobi # as original data
 
 ```
 
-## contact number
+### contact number
 
 ```{r}
 # Number of contact 
 ## origin data
-p1 <-  ggplot(mobi1,aes( x = date)) +
-   # geom_point(aes(y = k_7da, color = "red") )+
-   geom_line( aes(y = k),color = "blue")+
-   labs(y="Number of contact",x="", fill = "")+
+ggplot(mobi1,aes( x = date)) +
+   geom_line( aes(y = k,color = "k"), size = 1)+
+   geom_line( aes(y = k_mean7da,color = "k_mean7da"), size = 1)+
+   labs(y="Number of contact",x="")+
    ylim (0,30)+
-   ggtitle("Number of contacts over time in NRW (mobility data) " )+
+   ggtitle("Number of contacts over time in NRW (Netcheck data) " )+
    scale_x_date(breaks = "21 days")+ # display all dates on x axis
   # scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days",
   #              limits = c(as.Date("2020-01-15"),as.Date("2021-12-31")),
   #              expand = c(0, 0)) +
+  scale_color_manual(name = "", values = c("k"="blue","k_mean7da"="red"),
+                     labels = c("Daily contacts",
+                          "Rolling ave.7days"))+
    theme_classic()+
    theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
          axis.title = element_text(colour = "black", size = 15, face = "bold"),
          legend.background = element_blank(),
          legend.key = element_blank(),
-         legend.position = "right",
+         legend.position = c( 0.5,0.8),
          legend.text = element_text(colour = "black", size = 15),
          legend.title = element_text(colour = "black", size = 16, face = "bold"),
          plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
          strip.text = element_text(colour = "black", size = 10, face = "bold"))
  
-## rolling average
-p2 <- ggplot(mobi1,aes( x = date)) +
-   # geom_point(aes(y = k_7da, color = "red") )+
-   geom_line( aes(y = k_7da),color = "blue")+
-   labs(y="Rolling contacts_7 days",x="", fill = "")+
-    ylim (0,30)+
-   ggtitle("Number of contacts over time in NRW (mobility data) " )+
-   scale_x_date(breaks = "21 days")+ # display all dates on x axis
+
+
+
+```
+
+### contact index
+
+```{r}
+# Number of contact 
+## original data
+ggplot(mobi1,aes( x = date)) +
+  geom_line( aes(y = cx,color = "cx"), size = 1)+
+   geom_line( aes(y = cx_mean7da,color = "cx_mean7da"), size = 1)+
+  labs(y="Contact index(CX)",x="", fill = "")+
+  ylim(0,1500)+
+  scale_x_date(breaks = "21 days")+ # display all dates on x axis
+  # scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days",
+  #              limits = c(as.Date("2020-01-15"),as.Date("2021-12-31")),
+  #              expand = c(0, 0)) +
+  scale_color_manual(name = "", values = c("cx"="blue","cx_mean7da"="red"),
+                     labels = c("Daily contact index(cx)",
+                          "Rolling ave.7days"))+
    theme_classic()+
    theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
          axis.title = element_text(colour = "black", size = 15, face = "bold"),
          legend.background = element_blank(),
          legend.key = element_blank(),
-         legend.position = "right",
+         legend.position = c( 0.5,0.8),
          legend.text = element_text(colour = "black", size = 15),
          legend.title = element_text(colour = "black", size = 16, face = "bold"),
          plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
          strip.text = element_text(colour = "black", size = 10, face = "bold"))
-# multiple plots in the same page 
-ggarrange(p1+rremove("x.text"), p2, 
-          labels = c("A", "B"),
-          ncol = 1, nrow = 2)
-
-# # Plotting a grid of plots
-# plot_grid(p1,p2,
-#  ncol = 1, nrow = 2)
-
 
 ```
 
-## contact index
+## Google mobility
 
-```{r}
-# Number of contact 
-## original data
-p1 <-  ggplot(mobi1,aes( x = date)) +
-  # geom_point(aes(y = k_7da, color = "red") )+
-  geom_line( aes(y = cx),color = "blue")+
-  labs(y="Contact index(CX)",x="", fill = "")+
-  ylim(0,1500)+
-  ggtitle("Contact index (CX) over time in NRW (mobility data) " )+
-  scale_x_date(breaks = "21 days")+ # display all dates on x axis
-  theme_classic()+
-  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-        axis.title = element_text(colour = "black", size = 15, face = "bold"),
-        legend.background = element_blank(),
-        legend.key = element_blank(),
-        legend.position = "right",
-        legend.text = element_text(colour = "black", size = 15),
-        legend.title = element_text(colour = "black", size = 16, face = "bold"),
-        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-        strip.text = element_text(colour = "black", size = 10, face = "bold"))
-
-## rolling average
-p2<- ggplot(mobi1,aes( x = date)) +
-  # geom_point(aes(y = k_7da, color = "red") )+
-  geom_line( aes(y = cx_7da),color = "blue")+
-  labs(y="Rolling (CX)_7 days",x="", fill = "")+
-  ylim(0,500)+
-  ggtitle("Contact index (CX) over time in NRW (mobility data) " )+
-  scale_x_date(breaks = "21 days")+ # display all dates on x axis
-  theme_classic()+
-  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-        axis.title = element_text(colour = "black", size = 15, face = "bold"),
-        legend.background = element_blank(),
-        legend.key = element_blank(),
-        legend.position = "right",
-        legend.text = element_text(colour = "black", size = 15),
-        legend.title = element_text(colour = "black", size = 16, face = "bold"),
-        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-        strip.text = element_text(colour = "black", size = 10, face = "bold"))
-
- # multiple plots in the same page 
-ggarrange(p1+rremove("x.text"), p2, 
-          labels = c("A", "B"),
-          ncol = 1, nrow = 2)
-
-```
-
-#Google mobility
 ```{r}
 google_2020 <- read.csv(paste0(path_mobility,"/google/2020_DE_Region_Mobility_Report.csv"))
 google_2021 <- read.csv(paste0(path_mobility,"/google/2021_DE_Region_Mobility_Report.csv"))
@@ -3107,233 +3083,247 @@ colnames(google)
 colnames(google)<- c("date","retail_recreation","grocery_pharmac","parks","transit_stations","workplaces","residential" ) # shorter col names
 google$date <- as.Date(google$date, format = "%Y-%m-%d")
 
-
-```
-
-## Movement trends
-### All places
-```{r}
-
 colnames(google)
+google <- google %>%
+  mutate(ave_allplace = (retail_recreation+grocery_pharmac+transit_stations+workplaces+residential+parks)/6)
+google <- google %>%
+  mutate(ave_allplace_nopark = (retail_recreation+grocery_pharmac+transit_stations+workplaces+residential)/5)
 
-google_melt <- melt(google,id.vars = "date") # id.vars is variable that you don't want to melt
-ggplot(google_melt,aes( x = date, y = value, color = variable)) +
-   geom_line(size =1)+
-   geom_hline(yintercept=0, linetype="dashed", 
-                color = "red", size=1)+
-   labs(y="",x="", color = "")+
-   ggtitle("Movement trends in NRW [google data] " )+
-   scale_x_date(breaks = "21 days")+ # display all dates on x axis
-   scale_y_continuous(limits = c(-100,100),
-                      labels = c("-100%","-50%","Baseline","50%","100%"))+ #labels = unit_format(unit ="%")
-  # ylim (-100,100)+
-   theme_classic()+
-   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-         axis.title = element_text(colour = "black", size = 15, face = "bold"),
-         legend.background = element_blank(),
-         legend.key = element_blank(),
-         legend.position = "right",
-         legend.text = element_text(colour = "black", size = 15),
-         legend.title = element_text(colour = "black", size = 16, face = "bold"),
-         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-         strip.text = element_text(colour = "black", size = 10, face = "bold"))
 
+# Rolling average of 7 days 
+google<- google %>%mutate(
+  retail_recreation_mean7da   = zoo::rollmean(retail_recreation, k = 7, fill = NA),
+  grocery_pharmac_mean7da     = zoo::rollmean(grocery_pharmac, k = 7, fill = NA),
+  grocery_pharmac_mean7da     = zoo::rollmean(grocery_pharmac, k = 7, fill = NA),
+  parks_mean7da               = zoo::rollmean(parks, k = 7, fill = NA),
+  transit_stations_mean7da    = zoo::rollmean(transit_stations, k = 7, fill = NA),
+  workplaces_mean7da          = zoo::rollmean(workplaces, k = 7, fill = NA),
+  residential_mean7da         = zoo::rollmean(residential, k = 7, fill = NA),
+  ave_allplace_mean7da        = zoo::rollmean(ave_allplace, k = 7, fill = NA),
+  ave_allplace_nopark_mean7da = zoo::rollmean(ave_allplace_nopark, k = 7, fill = NA)
+)
 
 
 ```
 
-### Separate places
+###Average change 
+
+The movement to parks is more likely relevant to seasonal, so it will be excluded from general trend of movement 
 
 ```{r}
-# Retail/Recreation
-p1 <- ggplot(google,aes( x = date)) +
-  # geom_point(aes(y = k_7da, color = "red") )+
-  geom_line( aes(y = retail_recreation),color = "blue")+
-  # geom_line( aes(y = grocery_pharmac),color = "blue")+
-  # geom_line( aes(y = parks),color = "blue")+
-  # geom_line( aes(y = transit_stations),color = "blue")+
-  # geom_line( aes(y = workplaces),color = "blue")+
-  # geom_line( aes(y = residential),color = "blue")+
-  geom_hline(yintercept=0, linetype="dashed", 
-             color = "red", size=1)+
-  labs(y="",x="", fill = "")+
-  ggtitle("Retail/Recreation " )+
+
+
+ggplot(google,aes( x = date)) +
+  geom_line( aes(y = ave_allplace_nopark,color = "ave_allplace_nopark"), size = 1)+
+   geom_line( aes(y = ave_allplace_nopark_mean7da,color = "ave_allplace_nopark_mean7da"), size = 1)+
+   geom_hline(yintercept=0, linetype="dashed", 
+                color = "black", size=1)+
+   labs(y="",x="", color = "")+
+   ggtitle("Movement trends in NRW in Gernal [google data] " )+
+   scale_y_continuous(limits = c(-100,100),breaks = seq(-100,100, by = 50),
+                      labels = c("-100%","-50%","Baseline\n(Jan-mid.Feb)","50%","100%"))+ #labels = unit_format(unit ="%")
   scale_x_date(breaks = "21 days")+ # display all dates on x axis
-  scale_y_continuous(limits = c(-100,100),
-                     labels = c("-100%","-50%","Baseline","50%","100%"))+ #labels = unit_format(unit ="%")
-  # ylim (-100,100)+
-  theme_classic()+
-  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-        axis.title = element_text(colour = "black", size = 15, face = "bold"),
-        legend.background = element_blank(),
-        legend.key = element_blank(),
-        legend.position = "right",
-        legend.text = element_text(colour = "black", size = 15),
-        legend.title = element_text(colour = "black", size = 16, face = "bold"),
-        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-        strip.text = element_text(colour = "black", size = 10, face = "bold"))
-#grocery_pharmac
-p2 <- ggplot(google,aes( x = date)) +
-  # geom_point(aes(y = k_7da, color = "red") )+
-  # geom_line( aes(y = retail_recreation),color = "blue")+
-  geom_line( aes(y = grocery_pharmac),color = "blue")+
-  # geom_line( aes(y = parks),color = "blue")+
-  # geom_line( aes(y = transit_stations),color = "blue")+
-  # geom_line( aes(y = workplaces),color = "blue")+
-  # geom_line( aes(y = residential),color = "blue")+
-  geom_hline(yintercept=0, linetype="dashed", 
-             color = "red", size=1)+
-  labs(y="",x="", fill = "")+
-  ggtitle("grocery_pharmac " )+
-  scale_x_date(breaks = "21 days")+ # display all dates on x axis
-  scale_y_continuous(limits = c(-100,100),
-                     labels = c("-100%","-50%","Baseline","50%","100%"))+ #labels = unit_format(unit ="%")
-  # ylim (-100,100)+
-  theme_classic()+
-  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-        axis.title = element_text(colour = "black", size = 15, face = "bold"),
-        legend.background = element_blank(),
-        legend.key = element_blank(),
-        legend.position = "right",
-        legend.text = element_text(colour = "black", size = 15),
-        legend.title = element_text(colour = "black", size = 16, face = "bold"),
-        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-        strip.text = element_text(colour = "black", size = 10, face = "bold"))
-
-# parks
-p3 <- ggplot(google,aes( x = date)) +
-   # geom_point(aes(y = k_7da, color = "red") )+
-   # geom_line( aes(y = retail_recreation),color = "blue")+
-   # geom_line( aes(y = grocery_pharmac),color = "blue")+
-   geom_line( aes(y = parks),color = "blue")+
-   # geom_line( aes(y = transit_stations),color = "blue")+
-   # geom_line( aes(y = workplaces),color = "blue")+
-   # geom_line( aes(y = residential),color = "blue")+
-   geom_hline(yintercept=0, linetype="dashed", 
-                color = "red", size=1)+
-   labs(y="",x="", fill = "")+
-   ggtitle(" parks " )+
-   scale_x_date(breaks = "21 days")+ # display all dates on x axis
-   scale_y_continuous(limits = c(-100,100),
-                      labels = c("-100%","-50%","Baseline","50%","100%"))+ #labels = unit_format(unit ="%")
-  # ylim (-100,100)+
+  # scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days",
+  #              limits = c(as.Date("2020-01-15"),as.Date("2021-12-31")),
+  #              expand = c(0, 0)) +
+  scale_color_manual(name = "", values = c("ave_allplace_nopark"="blue","ave_allplace_nopark_mean7da"="red"),
+                     labels = c("Daily contact index(cx)",
+                          "Rolling ave.7days"))+
    theme_classic()+
    theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
          axis.title = element_text(colour = "black", size = 15, face = "bold"),
          legend.background = element_blank(),
          legend.key = element_blank(),
-         legend.position = "right",
+         legend.position = c( 0.2,0.8),
          legend.text = element_text(colour = "black", size = 15),
          legend.title = element_text(colour = "black", size = 16, face = "bold"),
          plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
          strip.text = element_text(colour = "black", size = 10, face = "bold"))
-
-# transit_stations
-p4 <- ggplot(google,aes( x = date)) +
-   # geom_point(aes(y = k_7da, color = "red") )+
-   # geom_line( aes(y = retail_recreation),color = "blue")+
-   # geom_line( aes(y = grocery_pharmac),color = "blue")+
-   # geom_line( aes(y = parks),color = "blue")+
-   geom_line( aes(y = transit_stations),color = "blue")+
-   # geom_line( aes(y = workplaces),color = "blue")+
-   # geom_line( aes(y = residential),color = "blue")+
-   geom_hline(yintercept=0, linetype="dashed", 
-                color = "red", size=1)+
-   labs(y="",x="", fill = "")+
-   ggtitle(" transit_stations " )+
-   scale_x_date(breaks = "21 days")+ # display all dates on x axis
-   scale_y_continuous(limits = c(-100,100),
-                      labels = c("-100%","-50%","Baseline","50%","100%"))+ #labels = unit_format(unit ="%")
-  # ylim (-100,100)+
-   theme_classic()+
-   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-         axis.title = element_text(colour = "black", size = 15, face = "bold"),
-         legend.background = element_blank(),
-         legend.key = element_blank(),
-         legend.position = "right",
-         legend.text = element_text(colour = "black", size = 15),
-         legend.title = element_text(colour = "black", size = 16, face = "bold"),
-         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-         strip.text = element_text(colour = "black", size = 10, face = "bold"))
-
-
-# workplaces
-p5 <- ggplot(google,aes( x = date)) +
-   # geom_point(aes(y = k_7da, color = "red") )+
-   # geom_line( aes(y = retail_recreation),color = "blue")+
-   # geom_line( aes(y = grocery_pharmac),color = "blue")+
-   # geom_line( aes(y = parks),color = "blue")+
-   # geom_line( aes(y = transit_stations),color = "blue")+
-   geom_line( aes(y = workplaces),color = "blue")+
-   # geom_line( aes(y = residential),color = "blue")+
-   geom_hline(yintercept=0, linetype="dashed", 
-                color = "red", size=1)+
-   labs(y="",x="", fill = "")+
-   ggtitle("workplaces " )+
-   scale_x_date(breaks = "21 days")+ # display all dates on x axis
-   scale_y_continuous(limits = c(-100,100),
-                      labels = c("-100%","-50%","Baseline","50%","100%"))+ #labels = unit_format(unit ="%")
-  # ylim (-100,100)+
-   theme_classic()+
-   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-         axis.title = element_text(colour = "black", size = 15, face = "bold"),
-         legend.background = element_blank(),
-         legend.key = element_blank(),
-         legend.position = "right",
-         legend.text = element_text(colour = "black", size = 15),
-         legend.title = element_text(colour = "black", size = 16, face = "bold"),
-         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-         strip.text = element_text(colour = "black", size = 10, face = "bold"))
-
-# residential
-p6 <- ggplot(google,aes( x = date)) +
-   # geom_point(aes(y = k_7da, color = "red") )+
-   # geom_line( aes(y = retail_recreation),color = "blue")+
-   # geom_line( aes(y = grocery_pharmac),color = "blue")+
-   # geom_line( aes(y = parks),color = "blue")+
-   # geom_line( aes(y = transit_stations),color = "blue")+
-   # geom_line( aes(y = workplaces),color = "blue")+
-   geom_line( aes(y = residential),color = "blue")+
-   geom_hline(yintercept=0, linetype="dashed", 
-                color = "red", size=1)+
-   labs(y="",x="", fill = "")+
-   ggtitle("residential " )+
-   scale_x_date(breaks = "21 days")+ # display all dates on x axis
-   scale_y_continuous(limits = c(-100,100),
-                      labels = c("-100%","-50%","Baseline","50%","100%"))+ #labels = unit_format(unit ="%")
-  # ylim (-100,100)+
-   theme_classic()+
-   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-         axis.title = element_text(colour = "black", size = 15, face = "bold"),
-         legend.background = element_blank(),
-         legend.key = element_blank(),
-         legend.position = "right",
-         legend.text = element_text(colour = "black", size = 15),
-         legend.title = element_text(colour = "black", size = 16, face = "bold"),
-         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-         strip.text = element_text(colour = "black", size = 10, face = "bold"))
-
-
-# multiple plots in the same page 
-ggarrange(p1+rremove("x.text"),
-          p2+rremove("x.text")+rremove("y.text"),
-          p3+rremove("x.text"),
-          p4+rremove("x.text")+rremove("y.text"),
-          p5,
-          p6+rremove("y.text"), 
-          labels = c("A", "B"),
-          ncol = 2, nrow = 3)
-
-# # Plotting a grid of plots
-# plot_grid(p1,p2,
-#  ncol = 1, nrow = 2)
 
 
 ```
+
+### Specific places
+
+```{r}
+
+google_melt <- google %>%select(-contains("parks"))%>% select(date,contains("_mean7da")) # keep rolling average variables only
+google_melt <- melt(google_melt,id.vars = "date") # id.vars is variable that you don't want to melt
+ggplot(google_melt%>%filter(variable !="ave_allplace_mean7da"&variable !="ave_allplace_nopark_mean7da"),
+       aes( x = date, y = value, color = variable)) +
+  geom_line(size =1)+
+  geom_hline(yintercept=0, linetype="dashed", 
+             color = "black", size=1)+
+  labs(y="",x="", color = " ")+
+  ggtitle("Movement trends in NRW [google data] " )+
+  scale_x_date(breaks = "21 days")+ # display all dates on x axis
+  scale_color_manual(values = c("red","#de77ae","blue","grey","orange"),
+                     labels = c("Retail_recreation",
+                                "Grocery_pharmac",
+                                "Transit_stations",
+                                "Workplaces",
+                                "Residential"))+
+  scale_y_continuous(limits = c(-100,100),
+                     labels = c("-100%","-50%","Baseline\n(Jan-mid.Feb)","50%","100%"))+#labels = unit_format(unit ="%")
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+           legend.position = c( 0.2,0.8),
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+
+
+```
+
+## Facebook
+
+**Change in Movement:** is to understand how much less people are moving around since
+the onset of the coronavirus epidemic. People move around were quantified  by counting the number of level-16 Bing tiles ( 600 x 600 meter).
+
+**Stay single place:** the percentage of eligible people (above) who are only observed in a single level-16 Bing tile during the course of a day. 
+
+
+```{r}
+
+#https://research.facebook.com/blog/2020/06/protecting-privacy-in-facebook-mobility-data-during-the-covid-19-response/
+
+facebook1 <- read_delim(paste0(path_mobility,"/facebook/movement-range-data-2020-03-01--2020-12-31.txt")) # 2020 data
+facebook2 <- read_delim(paste0(path_mobility,"/facebook/movement-range-2022-02-08.txt")) # 2021 data
+facebook <- rbind( facebook1, facebook2)
+dim(facebook)[1] == dim(facebook1)[1] +dim(facebook2)[1] # check if TRUE
+rm(facebook1, facebook2) # remove incomplete data
+
+facebook <- facebook %>% filter(country == "DEU" & polygon_name == "Nordrhein-Westfalen")
+
+facebook <- facebook %>% select(ds, contains("all_"))
+colnames(facebook) <- c("date","movement_change","prop_one_location")
+
+
+# Rolling average of 7 days 
+facebook <-  facebook%>%mutate(
+  movement_change_mean7da   = zoo::rollmean(movement_change, k = 7, fill = NA),
+  prop_one_location_mean7da  = zoo::rollmean(prop_one_location, k = 7, fill = NA)
+)
+
+```
+
+###Movement trend
+
+```{r}
+
+
+facebook_melt <- facebook %>% select("date",contains("_mean7da")) #
+facebook_melt <- melt(facebook_melt,id.vars = "date") # id.vars is variable that you don't want to melt
+ggplot(facebook_melt,
+       aes( x = date, y = value, color = variable)) +
+  geom_line(size =1)+
+  geom_hline(yintercept=0, linetype="dashed", 
+             color = "black", size=1)+
+  labs(y="",x="", color = " ")+
+  ggtitle("Movement trends in NRW Germany [facebook data_mean7day] " )+
+  scale_x_date(breaks = "21 days")+ # display all dates on x axis
+  scale_color_manual(values = c("Green","blue","orange"),
+                     labels = c("Change in movement",
+                                "Stay a single place"))+
+  scale_y_continuous(limits = c(-0.4,0.8),breaks = seq(-0.4,0.8, by = 0.2),# not yet scale 100%
+                     labels = c("-40%","-20%","Baseline \n   (Feb.20)","20%","40%","60%","80%"))+#labels = unit_format(unit ="%")
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.2,0.8),
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+
+```
+
+## Apple 
+
+**This only at country level**
+
+```{r}
+
+apple <- read.csv(paste0(path_mobility,"/applemobilitytrends-2022-02-10.csv"))
+apple <- apple%>%filter( region =="Germany")
+colnames(apple)
+apple<- apple %>% select(transportation_type,contains("X"))
+#revert cols into rows:
+apple <- apple %>% 
+  rownames_to_column() %>% 
+  gather(variable, value, -rowname) %>% 
+  spread(rowname, value)
+colnames(apple) <- c("date", "driving","transit","walking") # add col names
+apple <- apple [-1,] # remove 1st with names
+apple$date <- substring(apple$date,2) # remove 1st letter of a string
+apple$date <- as.Date(apple$date, format = "%Y.%m.%d")
+apple <- apple %>% 
+     mutate_at(c(2:4), as.numeric) # covert cols 2:4 to numeric
+table(duplicated(apple$date)) # check if there is duplicated date
+
+# calculate changes: Baseline: January 13th, 2020 ( value = 100)
+apple$driving <- apple$driving  - 100
+apple$transit <- apple$transit  - 100
+apple$walking <- apple$walking  - 100
+
+apple <- apple[-1,] # remove baseline row
+
+# Rolling average of 7 days 
+apple <-  apple %>%mutate(
+  driving_mean7da   = zoo::rollmean(driving, k = 7, fill = NA),
+  transit_mean7da   = zoo::rollmean(transit, k = 7, fill = NA),
+  walking_mean7da   = zoo::rollmean(walking, k = 7, fill = NA)
+)
+
+
+
+```
+
+###Movement trend
+
+```{r}
+
+apple_melt <- apple %>% select("date",contains("_mean7da")) # 
+apple_melt <- melt(apple_melt,id.vars = "date") # id.vars is variable that you don't want to melt
+ggplot(apple_melt,
+       aes( x = date, y = value, color = variable)) +
+  geom_line(size =1)+
+  geom_hline(yintercept=0, linetype="dashed", 
+             color = "black", size=1)+
+  labs(y="",x="", color = " ")+
+  ggtitle("Movement trends in Germany [apple data] " )+
+  scale_x_date(breaks = "21 days")+ # display all dates on x axis
+  scale_color_manual(values = c("Green","blue","orange"),
+                     labels = c("Driving",
+                                "Transit",
+                                "Waking"))+
+  scale_y_continuous(limits = c(-100,200), breaks = seq(-100,200, by = 50),
+                     labels = c("-100%","-50%","Baseline \n (13.01.20)","50%","100%","150%","200%"))+#labels = unit_format(unit ="%")
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.2,0.8),
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+
+```
+
+ 
+
