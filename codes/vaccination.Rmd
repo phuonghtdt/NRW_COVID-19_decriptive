@@ -1,0 +1,479 @@
+---
+title: "Vaccination against SARS-CoV-2 in NRW"
+author: "Thi Phuong Huynh"
+date: "2/7/2022"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    toc_float: true # able of contents to the left, visible even when the document is scrolled
+---
+
+# set up
+
+Date: <b>`r format(Sys.Date(), "%B %d, %Y")`</b>
+
+All computations were performed with `r R.Version()$version.string`.
+
+
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(fig.retina = 1, fig.height = 7, fig.width = 14,
+                      echo = FALSE, message = FALSE, warning = FALSE,
+                      results='hide')
+# Loading packages
+library(epiDisplay)
+library("deSolve")
+library(plyr)
+library(ggplot2)
+library("RColorBrewer")
+library(wesanderson)
+library("ggsci")
+library(scales)
+library(openxlsx)
+library("readr")
+library(dplyr)
+library(ggrepel)
+library(directlabels)
+library(writexl)
+library(cowplot)
+library(Cairo)
+library("readxl")
+library(zoo)
+library(grid)
+library(epiDisplay)
+library(ggpubr)
+library(glue)
+library(stringr)
+library(tidyr)
+library(gridExtra)
+
+set.seed(123456789)
+
+
+path_data<- paste0("C:/Users/huynh/sciebo/NRW_descriptive/data/")  
+
+#http://r-statistics.co/Top50-Ggplot2-Visualizations-MasterList-R-Code.html
+# Stacked bar plot
+
+```
+
+#Changaeble variables
+
+```{r}
+
+Date_today <- as.Date('29.12.2021', format='%d.%m.%Y') 
+#pop
+NRW_pop <- 17925570
+NRW_under12 <- 2014762
+NRW_pop_vacc <- NRW_pop - NRW_under12
+
+
+```
+
+
+#Data
+
+BUND data is summed by vaccine types daily while LK data is at individual level with age group but without vacine types.
+
+```{r}
+# File_paths
+            
+Read_path_VaccData_BUND<-paste0(path_data,"Aktuell_Deutschland_Bundeslaender_COVID-19-Impfungen.csv")
+Read_path_VaccData_LK<-paste0(path_data,"Aktuell_Deutschland_Landkreise_COVID-19-Impfungen.csv")
+#read vaccination data
+vacc_rki_BUND<- read_csv(Read_path_VaccData_BUND)
+vacc_rki_LK<- read_csv(Read_path_VaccData_LK)
+
+
+```
+
+##Subset to NRW
+
+```{r}
+# vaccinations in NRW
+# Bundesland level
+vacc_BUND <- vacc_rki_BUND %>% filter(BundeslandId_Impfort=="05")
+colnames(vacc_BUND) <- c("vac_date",'state_code',"vac_type",'dose',"vac_n")
+# County (lankreis) level
+vacc_LK<- vacc_rki_LK%>% filter(str_sub(LandkreisId_Impfort,1,2)=='05') # or is code of NRW
+colnames(vacc_LK) <- c("vac_date",'county_code',"age group",'dose',"vac_n")
+
+
+```
+
+##Cleaning data
+
+```{r}
+
+###################################################################################################
+# CAVE: It is necessary to distinguish between the vaccines, since only one dose is need when vaccinated with J&J.
+# dim_first & prax_first vaccinations will count first vaccinations WITHOUT the vaccine by J&J. 
+# For modeling purposes J&J will be treated as second vaccination, therefore it will be added to dim_sec & prax_sec vaccinations,
+# even though the datatable given by the LZG treats it as first vaccination.O
+##################################################################################################
+###Bundeslank level
+vacc_BUND$vac_type <- as.factor(vacc_BUND$vac_type)
+vacc_BUND$dose <- as.factor(vacc_BUND$dose)
+levels(vacc_BUND$dose) <- c("1", "2","booster") # label dose 3 as booster
+vacc_BUND$vac_date <- as.Date(vacc_BUND$vac_date)
+vacc_BUND$maxvacdate <- max(vacc_BUND$vac_date)
+vacc_BUND$vac_week <- as.integer((as.Date(vacc_BUND$vac_date)-as.Date("2020-01-01"))/7+1)
+
+#revert week to date: . ##Wed (1/1/2020), Wed is the start of a week
+vacc_BUND$vac_week_date <- lubridate::ymd( "2020-01-01" ) + lubridate::weeks(vacc_BUND$vac_week-1)# start at week 1 of the year
+
+# County (lankreis) level
+vacc_LK$dose <- as.factor(vacc_LK$dose)
+levels(vacc_LK$dose) <- c("1", "2","booster") # label dose 3 as booster
+vacc_LK$vac_date <- as.Date(vacc_LK$vac_date)
+vacc_LK$maxvacdate <- max(vacc_LK$vac_date)
+vacc_LK$vac_week <- as.integer((as.Date(vacc_LK$vac_date)-as.Date("2020-01-01"))/7+1)
+#revert week to date: . ##Wed (1/1/2020), Wed is the start of a week
+vacc_LK$vac_week_date <- lubridate::ymd( "2020-01-01" ) + lubridate::weeks(vacc_LK$vac_week-1)# start at week 1 of the year
+
+
+```
+
+# Vaccination
+## daily
+
+### vaccination progress regardless of vac_type and dose
+
+```{r}
+
+# # pop weighing
+# vacc_BUND %>% group_by(vac_date) %>%
+#   summarise_if(is.numeric, sum)%>%
+#   mutate(vac_mean7da = zoo::rollmean(vac_n, k = 7, fill = NA))%>%
+#   ggplot(aes(x = vac_date))+
+#   geom_line(aes(y=vac_n/NRW_pop*100000, color = "vac_n/NRW_pop*100000"), size =1)+
+#   geom_line(aes(y=vac_mean7da/NRW_pop*100000,color = "vac_mean7da/NRW_pop*100000"), size = 1)+
+#   # facet_grid(row = vars(dose))+
+#   labs(x = "Vaccination time", y = "Vacinated dose per 100k pop", color ="") +
+#   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))+
+#   ggtitle(" Vaccination against SAR-CoV-2 in NRW " )+
+#   scale_color_manual(values=c("vac_n/NRW_pop*100000"="blue","vac_mean7da/NRW_pop*100000"="red"),
+#                      labels = c("Raw number",
+#                                 "Rolling ave.7days"))+
+#   theme_classic()+
+#   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+#         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+#         axis.title = element_text(colour = "black", size = 15, face = "bold"),
+#         legend.background = element_blank(),
+#         legend.key = element_blank(),
+#         legend.position = c(0.2,0.8),
+#         legend.text = element_text(colour = "black", size = 15),
+#         legend.title = element_text(colour = "black", size = 16, face = "bold"),
+#         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+#         strip.text = element_text(colour = "black", size = 10, face = "bold"))
+# 
+
+# No pop weighing
+
+vacc_BUND %>% group_by(vac_date) %>%
+  summarise_if(is.numeric, sum)%>%
+  mutate(vac_mean7da = zoo::rollmean(vac_n, k = 7, fill = NA))%>%
+  ggplot(aes(x = vac_date))+
+  geom_line(aes(y=vac_n/1000, color = "vac_n"), size =1)+
+  geom_line(aes(y=vac_mean7da/1000,color = "vac_mean7da"), size = 1)+
+  # facet_grid(row = vars(dose))+
+  labs(x = "Vaccination time", y = "Vacinated dose (thousand)", color ="") +
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))+
+  ggtitle(" Vaccination against SAR-CoV-2 in NRW " )+
+  scale_color_manual(values=c("vac_n"="blue","vac_mean7da"="red"),
+                     labels = c("Raw number",
+                                "Rolling ave.7days"))+
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.2,0.8),
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+
+
+```
+
+### vaccination vs dose
+
+```{r}
+
+#vaccination_by date#############################
+##No pop weighing
+p1 <- vacc_BUND%>% group_by(vac_date,dose)%>%
+              summarise_if(is.numeric,sum)%>%
+  ggplot(aes(x = vac_date, y=vac_n/1000, group = dose))+
+  # geom_bar(position="fill", stat="identity")+
+  geom_line(aes(color=dose))+
+  # facet_grid(row = vars(dose))+
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))+
+  labs(x = "Vaccination time", y = "Vacinated dose (thousand)") +
+  ylim(0,500)+
+  ggtitle("Vaccination against SAR-CoV-2 in NRW")+
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.12,0.8),
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+p1
+
+# ##pop weighing
+# p1 <- vacc_BUND%>% group_by(vac_date,dose)%>%
+#               summarise_if(is.numeric,sum)%>%
+#   ggplot(aes(x = vac_date, y=vac_n/NRW_pop*100000, group = dose))+
+#   # geom_bar(position="fill", stat="identity")+
+#   geom_line(aes(color=dose))+
+#   # facet_grid(row = vars(dose))+
+#   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))+
+#   labs(x = "Vaccination time", y = "Vacinated individual/100k") +
+#   ylim(0,1200)+
+#   ggtitle("Vaccination against SAR-CoV-2 in NRW")+
+#   theme_classic()+
+#   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+#         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+#         axis.title = element_text(colour = "black", size = 15, face = "bold"),
+#         legend.background = element_blank(),
+#         legend.key = element_blank(),
+#         legend.position = c(0.12,0.8),
+#         legend.text = element_text(colour = "black", size = 15),
+#         legend.title = element_text(colour = "black", size = 16, face = "bold"),
+#         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+#         strip.text = element_text(colour = "black", size = 10, face = "bold"))
+# 
+# p1
+
+# p2 <- vacc_LK %>% group_by(vac_date,dose)%>%
+#               summarise_if(is.numeric,sum)%>%
+#   ggplot(aes(x = vac_date, y=vac_n/NRW_pop*100000, group = dose))+
+#   # geom_bar(position="fill", stat="identity")+
+#   geom_line(aes(color=dose))+
+#   # facet_grid(row = vars(dose))+
+#   labs(x = "Vaccination time", y = "Vacinated individual/1ook") +
+#     ylim(0,1200)+
+#   ggtitle("NRW_vaccination_daily [LK dataset]")+
+#   theme(axis.text.x = element_text(angle = 90),
+#         plot.title = element_text(face = "bold",hjust = 0.5))+
+#   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))
+# 
+# 
+# # multiple plots in the same page 
+# ggarrange(p1+rremove("x.text"), p2, 
+#           labels = c("A", "B"),
+#           ncol = 1, nrow = 2)
+
+```
+
+### Vaccination vs vaccine type
+
+#### Absolute number
+
+```{r results='asis'}
+
+# reshape data
+vac_type <- vacc_BUND %>% dplyr::select(vac_date,vac_type,vac_n)%>%
+  group_by(vac_date,vac_type)%>%
+  summarise_if(is.numeric,sum)# count at date level
+
+vac_type <- vac_type %>%
+  pivot_wider(names_from = vac_type, values_from = vac_n)#Transposing row values to column
+vac_type [is.na(vac_type)] <- 0 # replace NAs value with 0
+vac_type <- as.data.frame(vac_type)
+
+#rolling average for smoother
+vac_type <- vac_type %>%
+mutate(Comirnaty_7da = zoo::rollmean(Comirnaty, k =7, fill = NA),
+         Janssen_7da= zoo::rollmean(Janssen, k =7, fill = NA),
+         Moderna_7da= zoo::rollmean(Moderna, k =7, fill = NA),
+         AstraZeneca_7da= zoo::rollmean(AstraZeneca, k =7, fill = NA)
+         )
+
+vac_type <- vac_type%>% dplyr::select(-c("Comirnaty","Janssen","Moderna","AstraZeneca"))
+colnames(vac_type) <- c("vac_date","Comirnaty","Janssen","Moderna","AstraZeneca")
+
+vac_type <- na.omit(vac_type) # remove rows with NA due to rolling ave. step
+
+
+vac_type <- reshape2::melt(vac_type, id.vars = c("vac_date"))
+
+# stacked area chart
+p <- ggplot(vac_type, aes(x=vac_date, y=value/1000, fill=variable)) + 
+  geom_area()+
+  scale_fill_manual(values=c("#d7191c", "#fdae61", "#abdda4", "#2b83ba"), name="Vaccine Type")+
+  # scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
+  #              limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
+  #              expand = c(0, 0)) +
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))+
+  labs(x = " ", y = "Vaccinated dose (thousand)_ave.7days") +
+  ggtitle("COVID-19 Vaccination in NRW")+
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.12,0.8),
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+# grid.arrange(p,nrow = 1)
+print(p)
+
+```
+
+#### Proportion
+
+Check why the white appears in such a pattern!
+
+```{r}
+# Compute percentages with dplyr
+
+p <- vac_type  %>%
+  group_by(vac_date, variable) %>%
+ ggplot(aes(x=vac_date, y=value, fill=variable)) + 
+  geom_bar(position="fill", stat="identity")+
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values=c("#d7191c", "#fdae61", "#abdda4", "#2b83ba"), name="Vaccine Type")+
+   # scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days",
+   #             limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
+   #             expand = c(0, 0)) +
+   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))+
+  labs(x = " ", y = "") +
+    ggtitle("COVID-19 Vaccination in NRW")+
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        # legend.position = c(0.12,0.8),
+        legend.position = "right",
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+print(p)
+
+```
+
+
+### cum vac over time
+
+```{r}
+#cum vac over time ###################
+
+vac_alltype1 <- vacc_BUND %>%filter(dose==1)%>% group_by(vac_date) %>%
+  summarise_if(is.numeric, sum)
+vac_alltype1 <- vac_alltype1 %>% dplyr::select(-c("vac_week"))# delete vac_week as it's wrong due to previous step
+vac_alltype1$vac_n_cum <- cumsum(vac_alltype1$vac_n)
+vac_alltype1$dose <- 1
+
+vac_alltype2 <- vacc_BUND %>%filter(dose==2)%>% group_by(vac_date) %>%
+  summarise_if(is.numeric, sum)
+vac_alltype2 <- vac_alltype2 %>% dplyr::select(-c("vac_week"))# delete vac_week as it's wrong due to previous step
+vac_alltype2$vac_n_cum <- cumsum(vac_alltype2$vac_n)
+vac_alltype2$dose <- 2
+
+vac_alltype3 <- vacc_BUND %>%filter(dose=="booster")%>% group_by(vac_date) %>%
+  summarise_if(is.numeric, sum)
+vac_alltype3 <- vac_alltype3%>% dplyr::select(-c("vac_week"))# delete vac_week as it's wrong due to previous step
+vac_alltype3$vac_n_cum <- cumsum(vac_alltype3$vac_n)
+vac_alltype3$dose <- "booster"
+
+vac_alltype <- rbind(vac_alltype1,vac_alltype2,vac_alltype3)
+
+
+ggplot(vac_alltype,
+       aes(x = vac_date,y=vac_n_cum/NRW_pop_vacc*100, color = dose))+
+  # geom_bar(position="fill", stat="identity")+
+  geom_line()+
+  # facet_grid(row = vars(dose))+
+  ylim(0,100)+
+  labs(x = "Vaccination time", y = "Vacinated percentage (%)/ target pop") +
+  ggtitle("NWR_vaccination")+
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))+
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        # legend.position = c(0.12,0.8),
+        legend.position = "right",
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+
+```
+
+
+## weekly
+
+```{r}
+# vaccination by week#############################
+
+# vac_byweek <- vacc_LK %>% group_by(vac_week_date, dose) %>%
+#   summarise_if(is.numeric,sum) # sum the numeric cols by group above, keep the names
+
+#[BUND dataset]
+p1 <- vacc_BUND %>% group_by(vac_week_date, dose) %>%
+  summarise_if(is.numeric,sum)%>%
+  ggplot(aes(x = vac_week_date, y=vac_n/1000, group = dose))+
+  # geom_bar(position="fill", stat="identity")+
+  geom_line(aes(color=dose))+
+  # facet_grid(row = vars(dose))+
+  labs(x = "Vaccination time", y = "Vacinated dose (thousand)") +
+  ggtitle("Vaccination against SAR-CoV-2 in NRW _weekly report")+
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))+
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.12,0.8),
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+p1
+
+##[LK dataset]
+# p2 <- vacc_LK %>% group_by(vac_week_date, dose) %>%
+#   summarise_if(is.numeric,sum)%>%
+#   ggplot(aes(x = vac_week_date, y=vac_n/NRW_pop*100000, group = dose))+
+#   # geom_bar(position="fill", stat="identity")+
+#   geom_line(aes(color=dose))+
+#   # facet_grid(row = vars(dose))+
+#   labs(x = "Vaccination time", y = "Vacinated individual per 100k") +
+#   ggtitle("NRW_vaccination_weekly [LK dataset]")+
+#   theme(axis.text.x = element_text(angle = 90),
+#         plot.title = element_text(face = "bold",hjust = 0.5))+
+#   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))
+# 
+# 
+# # multiple plots in the same page 
+# ggarrange(p1+rremove("x.text"), p2, 
+#           labels = c("A", "B"),
+#           ncol = 1, nrow = 2)
+
+```
+
