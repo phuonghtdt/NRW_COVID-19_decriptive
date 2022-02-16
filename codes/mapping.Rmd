@@ -1,153 +1,577 @@
 ---
-title: "Mapping"
+title: "Mapping_COVID-19 Incidence vs SES"
 author: "Thi Phuong Huynh"
-date: "1/17/2022"
-output: html_document
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    toc_float: true # able of contents to the left, visible even when the document is scrolled
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+# set up
 
-rm(list=ls())
-#Tom's codes##############################
+Date: <b>`r format(Sys.Date(), "%B %d, %Y")`</b>
+
+All computations were performed with `r R.Version()$version.string`.
+
+```{r setup, include=FALSE}
+
+rm(list = ls())
+knitr::opts_chunk$set(fig.retina = 1, fig.height = 7, fig.width = 14,
+                      echo = FALSE, message = FALSE, warning = FALSE,
+                      results='hide')
+
+Sys.setlocale("LC_TIME", "C")
+BEGIN_RMD <- Sys.time() # Keeping track of running time
+set.seed(75876342)
+options(warn = 1) # If warn is one, warnings are printed as they occur.
+
+
 library(sf) # for reading shape files into R
 library(tmap)#for creating the map
 library(dplyr)
-library(tidyveCrse)
-```
+library(tidyverse)
+library(ggpubr) #ggarrange
+library(pheatmap)
 
-#data input
-```{r data input}
-#NUTS_3##############################
-nuts3shapefile <- read_sf("C:/Users/huynh/sciebo/NRW_descriptive/data/NUTS_RG_20M_2021_3035.shp") # for the attached map you need to download the specific shape files from Eurostat. I used NUTS3
-nuts3shapefile <- nuts3shapefile %>% filter(CNTR_CODE == "DE") # chose only Germany
-# nuts3shapefile <- nuts3shapefile %>% filter(LEVL_CODE==3 ) # chose only NRW
-#COVID-19###########################
-covid_data <- read.csv("C:/Users/huynh/sciebo/NRW_descriptive/data/case_county_waves.csv")
-covid_data <- covid_data %>% select("NUTS_ID", "cases_wave4")
-covid_data$incper100000<- covid_data$cases_wave4/NRW_pop*100000
+path_data <- paste0("C:/Users/huynh/sciebo/NRW_descriptive/data")
 
 
 ```
 
-#demographic data
+
+#changeable variable
+
 ```{r demographic data}
 #pop######################
 NRW_pop <- 17925570
 NRW_under12 <- 2014762
-NRW_vacc <- NRW_pop -NRW_under12
+NRW_vacc <- NRW_pop - NRW_under12
 start_day <- as.Date("2020-02-27")# data before this day won't be counted
+# pop(https://www.destatis.de/DE/Home/_inhalt.html)
+#ref map: https://www.mags.nrw/matchingberater-karte
+#NRW pop. by county: http://www.citypopulation.de/en/germany/cities/nordrheinwestfalen/
+#NRW pop. by county( original from destatis): https://www-genesis.destatis.de/genesis/online?sequenz=statistikTabellen&selectionname=12411&language=en#abreadcrumb
+
 
 ```
 
+#data input
+```{r data input}
 
-```{r}
+#NRW_pop_county#####################
+pop <- read.csv(paste0(path_data,"/NRW_cencus/NRW_pop_bycounty_NUTS_ID.csv"),row.names = 1, encoding="UTF-8")
+pop <- pop%>% select(c("pop_n", "NUTS_ID")) #county name has error ->rm it
 
 #NUTS_3##############################
-nuts3shapefile <- read_sf("C:/Users/huynh/sciebo/NRW_descriptive/data/NUTS_RG_20M_2021_3035.shp") # for the attached map you need to download the specific shape files from Eurostat. I used NUTS3
-nuts3shapefile <- nuts3shapefile %>% filter(CNTR_CODE == "DE") # chose only Germany
-# nuts3shapefile <- nuts3shapefile %>% filter(LEVL_CODE==3 ) # chose only NRW
+nuts3 <- read_sf(paste0(path_data,"/NUTS/NUTS_RG_20M_2021_3035.shp")) #Eurostat
+# nuts3 <- read_sf(paste0(path_data,"/NUTS/nuts1000_12-31.gk3.shape/nuts1000_1231_3")) # RKI
+nuts3 <- nuts3 %>% filter(CNTR_CODE == "DE") # chose only Germany
+nuts3$NAME_LATN <- gsub(",.*", "",nuts3$NAME_LATN) #rm string after comma
+colnames(nuts3)[which(names(nuts3) == "NAME_LATN")] <- "county"  # rename a col
+nuts3 <- nuts3 %>% filter(nuts3$NUTS_ID %in% pop$NUTS_ID) # choose only NRW
+nuts3 <- merge(nuts3,pop, by = "NUTS_ID") # add population
+
+# Deprivation upto 2015
+# download.file("https://raw.githubusercontent.com/lekroll/GISD/master/Revisions/2019/Bund/Kreis/Kreis.csv", destfile = paste0(path_data,"/GISD/GISD_upto2015.csv")) # download data from Github## check update version
+
+gisd <- read.csv(paste0(path_data,"/GISD/GISD_upto2015.csv"), sep = ",",row.names = 1)
+colnames(gisd) <- c("county_id","county","year","pop","GISD_Score","GISD_5","GISD_10","GISD_k")
+gisd <- gisd %>%filter(year == 2015) # the most recent data
+# gisd <- gisd%>% filter(substr(county_id,1,2))
+
+gisd$county <- gsub(",.*", "", gisd$county) #rm string after comma
+gisd <- merge(nuts3,gisd, by = "county") # add NUTS info
+# gisd$GISD_5 <- as.factor(gisd$GISD_5)
+
+
 #COVID-19###########################
-covid_data <- read.csv("C:/Users/huynh/sciebo/NRW_descriptive/data/case_county_waves.csv")
-covid_data <- covid_data %>% select("NUTS_ID", "cases_wave4")
-covid_data$incper100000<- covid_data$cases_wave4/NRW_pop*100000
+dat = read.csv(paste0(path_data,"/211229_Fall-Liste.csv"), sep=";", encoding="UTF-8",row.names = 1)# encoding="UTF-8" : umlaut character
+colnames(dat)
+dat <- dat %>% select(-contains("InterneRef")) #rm
+names(dat) <- c("rep_date","county", "disease_start", "age",'hospitalized')   #rename
+dat$county[dat$county == "StadtRegion Aachen"] <- "SK StadtRegion Aachen" #change to the same format with other counties
+dat$county <- gsub("^.{0,3}", "", dat$county)# Replace first 3 characters (SK ) with empty string ""
+dat$rep_date<- as.Date(dat$rep_date, "%Y-%m-%d")
+dat$disease_start<- as.Date(dat$disease_start, "%Y-%m-%d")
+dat$county <- as.factor(dat$county)
+dat$rep_week <- as.integer((as.Date(dat$rep_date)-as.Date("2020-01-01"))/7+1) #wednessday starts a week
+dat$maxrepweek <- max(dat$rep_week) 
+# remove rep week 8 because of insufficient data 
+dat <- dat %>% filter(rep_week >=10)#
 
-#division 2
-covid_data$incper100000_grouped <- cut(covid_data$incper100000, breaks=c(-Inf,25,50,75,100,125,150,175, 200,Inf))
-covid_data$incper100000_grouped <- factor(covid_data$incper100000_grouped, levels=c("(-Inf,25]", "(25,50]", "(50,75]", "(75,100]", "(100,125]", "(125,150]",
-                                                                           "(150,175]", "(175,200]", "(200, Inf]"),
-                                       labels=c("0-25",">25-50",">50-75", ">75-100", ">100-125", ">125-150", ">150-175", ">175-200",
-                                                 ">200"), ordered=T)
 
-nuts3shapefile <- filter(nuts3shapefile,nuts3shapefile$NUTS_ID %in% covid_data$NUTS_ID)
+```
 
-nuts3shapefile1 <- merge(nuts3shapefile,covid_data, by = "NUTS_ID")
+##cleaning data
 
-# nrw_nuts <- merge(x=nuts3shapefile , y=covid_data,
-#                   by.x= "NUTS_ID",
-#                   by.y= "NUTS_NAME",
-#                   all.x=F, all.y=T) # match shape data with covid data
+```{r}
+#COVID-19###########################
 
-# nrw_nuts <- merge(nuts3shapefile , y=covid_data,
-#                   by.x= "NUTS_ID",
-#                   by.y= "NUTS3",
-#                   all.x=F, all.y=T) # match shape data with covid data
-legend_label=c("0-25",">25-50",">50-75", ">75-100", ">100-125", ">125-150", ">150-175", ">175-200",
-               ">200")
+#revert week to date: 
+#check which day is starting of a week : Wednesday
+dat$rep_week_date <- lubridate::ymd( "2020-01-01" ) + lubridate::weeks(dat$rep_week-1)
+dat$rep_week_date <- as.Date(dat$rep_week_date)
+dat$agegroup<- dat$age
+dat$agegroup <- cut(dat$agegroup, breaks=c(-Inf, 4, 9,14, 19,24,29,34,39,44,49,54,59,64,69,74,79,84,89, Inf))
+dat$agegroup <- factor(dat$agegroup, levels=c("(-Inf,4]", "(4,9]", "(9,14]", "(14,19]", "(19,24]", "(24,29]",
+                                              "(29,34]", "(34,39]", "(39,44]", "(44,49]", "(49,54]", 
+                                              "(54,59]", "(59,64]", "(64,69]", "(69,74]", "(74,79]", "(79,84]", "(84,89]", 
+                                              "(89, Inf]"),
+                       labels=c("0-4","5-9","10-14", "15-19", "20-24", "25-29", "30-34", "35-39",
+                                "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74",
+                                "75-79", "80-84", "85-89", ">90"), ordered=T)
+# These two counties:  "Mülheim an der Ruhr", "Städteregion Aachen" (nuts3) is different from dat ("Mülheim a.d.Ruhr", "StadtRegion Aachen" )
+##rename it to be inline with other dataset
 
-mapNRW <- tm_shape(nuts3shapefile1) +
-  tm_fill("incper100000_grouped", palette = "Blues", legend.show = F) +
-  tm_borders("black") + tm_add_legend(title = "Incidence", labels = legend_label, col = RColorBrewer::brewer.pal(9, "Blues")) +
+dat$county <- gsub("Mülheim a.d.Ruhr", "Mülheim an der Ruhr", dat$county)
+dat$county <- gsub("StadtRegion Aachen", "Städteregion Aachen", dat$county)
+
+
+#group data by county and wave
+dat_county <- dat %>% group_by(county) %>%
+  dplyr::summarise(cases=n())%>%
+  ungroup() 
+dat_county_wave1 <- dat %>%filter(rep_date <= as.Date("2020-06-30")) %>% group_by(county) %>%
+  dplyr::summarise(cases_wave1=n())%>%
+  ungroup() 
+dat_county_wave2 <- dat %>%filter(rep_date > as.Date("2020-06-30")&rep_date <= as.Date("2021-02-22")) %>% group_by(county) %>%
+  dplyr::summarise(cases_wave2=n())%>%
+  ungroup() 
+dat_county_wave3 <- dat %>%filter(rep_date > as.Date("2021-02-22")&rep_date <= as.Date("2021-07-12")) %>% group_by(county) %>%
+  dplyr::summarise(cases_wave3=n())%>%
+  ungroup() 
+dat_county_wave4 <- dat %>%filter(rep_date > as.Date("2021-07-12")&rep_date <= as.Date("2021-12-30")) %>% group_by(county) %>%
+  dplyr::summarise(cases_wave4=n())%>%
+  ungroup() 
+
+# dat_county1 <- left_join (dat_county,dat_county_wave1,dat_county_wave2,dat_county_wave3,dat_county_wave4, by="county")
+dat_county <- left_join (dat_county,dat_county_wave1)
+dat_county <- left_join (dat_county,dat_county_wave2)
+dat_county <- left_join (dat_county,dat_county_wave3)
+dat_county <- left_join (dat_county,dat_county_wave4)
+rm(dat_county_wave1,dat_county_wave2,dat_county_wave3,dat_county_wave4)
+
+# write.csv(dat_county,"C:/Users/huynh/sciebo/NRW_descriptive/data/case_county_waves.csv",
+#           fileEncoding = "UTF-8")# export and then mannualy combined with NUTS_3 data
+
+
+# dat_county <- read.csv(paste0(path_data,"/case_county_waves_NUTS_ID.csv"), encoding="UTF-8")
+
+dat_county <- merge(dat_county,nuts3, by = "county")
+
+# dat_county <- merge(dat_county , pop, by = c("NUTS_ID"), all = T) #
+# nuts3 <- merge(nuts3,dat_county, by = "NUTS_ID")
+
+
+
+```
+
+# SES
+
+* NRW social economic status
+ref: https://github.com/lekroll/GISD
+
+In order to be able to map regional differences in socioeconomic status, the German Index of Social Deprivation is used (Kroll et al. 2018, p. 105).
+The index is composed of the three equally weighted dimensions of education, occupation and income.
+The data underlying the dimensions are provided by the Indicators and Maps of Spatial and Urban Development (INKAR) database of the Federal Institute for Research on Building, Urban Affairs and Spatial Development (Bundesinstitut für Bau-, Stadt- und Raumforschung 2020 /
+
+https://www.bbsr.bund.de/BBSR/EN/home/_node.html;jsessionid=5D48C9E3CCEE2DF7D9A30B3C58D7986E.live21324).
+Indicators were selected which were available as time series from 1998 to 2012 (in the current version of the index used here, until 2014). If this was not the case, the missing values of the respective variables were imputed using regression analyses.
+
+```{r}
+
+#GISD5
+legend_label=c("1", "2", "3","4","5")
+
+panel_gisd5 <- tm_shape(gisd) +
+  tm_fill("GISD_5", palette = "Blues", legend.show = F) + #
+  tm_borders("black") +
+  tm_add_legend(title = "Deprivation index", labels = legend_label, col = RColorBrewer::brewer.pal(5, "Blues")) +
   # \n : line down
-  tm_layout(title = "COVID-19 infection_W4 \n ( per 100,000)", title.fontfamily = "sans", title.size = 2.0,
-            title.fontface= "bold", title.position= c(0.01,0.9),frame=F,
+  tm_layout(title = "Social econmic status", title.fontfamily = "sans", title.size = 1.5,
+            title.fontface= "bold", title.position= c(0.1,0.9),frame=F,
             legend.outside = F, legend.frame = F,
-            legend.position = c(0.9,0.0), legend.width = 1,
-            legend.title.size = 2.0, legend.text.size= 1.5,
+            legend.position = c(0.85,0.0), legend.width = 1,
+            legend.title.size = 1.5, legend.text.size= 1.2,
             legend.title.fontfamily ="sans",legend.title.fontface ="bold")
-mapNRW
+panel_gisd5 
+
+# #GISD_10
+# legend_label=c("1", "2", "3","4","5","6", "7", "8","9","10")
+# gisd10 <- tm_shape(gisd) +
+#   tm_fill("GISD_10", palette = "Blues", legend.show = F) + #
+#   tm_borders("black") +
+#   tm_add_legend(title = "GISD_10",labels = legend_label, col = RColorBrewer::brewer.pal(10, "Blues")) +
+#   # \n : line down
+#   tm_layout(title = "SES", title.fontfamily = "sans", title.size = 1.5,
+#             title.fontface= "bold", title.position= c(0.15,0.95),frame=F,
+#             legend.outside = F, legend.frame = F,
+#             legend.position = c(0.9,0.0), legend.width = 1,
+#             legend.title.size = 1.5, legend.text.size= 1.2,
+#             legend.title.fontfamily ="sans",legend.title.fontface ="bold")
+# 
+# 
+# # multiple plots in the same page 
+# ggpubr:: ggarrange(tmap_grob(gisd5), # tmap_grob: convert tmap into grob
+#                    tmap_grob(gisd10),
+#                    # labels = c("A", "B"),
+#                    ncol = 1, nrow = 2)
+# 
+# # # Plotting a grid of plots
+# # cowplot::plot_grid(w1,w2,
+# #  ncol = 1, nrow = 2)
+
+
+```
+
+
+# COVID-19 mapping
+##Wave1
+
+At the start, the incidences are still small. The incidence grouping should also be small to see the difference among counties. So the colour visualization is to compare within the wave. However, from wave two onward, the scale is similar.  
+
+For across waves comparison, please notice the legend!
+
+Testing volumes may have been insufficient early in the pandemic 
+
+```{r}
+title <-"COVID-19 reported_W1\n 27.02-30.06.2020"
+# title <-"COVID-19 reported_W2\n 01.07-22.02.2021"
+# title <-"COVID-19 reported_W3\n 23.02-12.07.2021"
+# title <-"COVID-19 reported_W4\n 13.07-30.12.2021"
+# titlel<-"COVID-19 reported\n 27.02.20-30.12.21"
+
+
+
+nuts3_case <- dat_county %>%select("NUTS_ID", "cases_wave1","pop_n")%>%
+  mutate(incper10k = cases_wave1/pop_n*10000)%>%
+  mutate(incper10k_group = cut(incper10k, breaks=c(-Inf,10,15,20,25,30,35,40,45,Inf)))
+
+nuts3_case <-merge(nuts3, nuts3_case , by = "NUTS_ID")
+
+#copy abow where appropriate
+legend_label=c("0-10",">10-15",">15-20", ">20-25", ">25-30", ">30-35", ">35-40", ">40-45",">45")
+
+w1 <- tm_shape(nuts3_case) +
+  tm_fill("incper10k_group", palette = "Purples", legend.show = F) + #Blues
+  tm_borders("black") +
+  tm_add_legend(title = "Incidence \n (per 10k)", labels = legend_label, col = RColorBrewer::brewer.pal(9, "Purples")) +
+  # \n : line down
+  tm_layout(title = paste0(title), title.fontfamily = "sans", title.size = 1.5,
+            title.fontface= "bold", title.position= c(0,0.9),frame=F,
+            legend.outside = F, legend.frame = F,
+            legend.position = c(0.85,0.0), legend.width = 1,
+            legend.title.size = 1.5, legend.text.size= 1.2,
+            legend.title.fontfamily ="sans",legend.title.fontface ="bold")
+
+# w1
+
+```
+
+##Wave 2
+
+```{r}
+
+# title <-"COVID-19 reported_W1\n 27.02-30.06.2020"
+title <-"COVID-19 reported_W2\n 01.07-22.02.2021"
+# title <-"COVID-19 reported_W3\n 23.02-12.07.2021"
+# title <-"COVID-19 reported_W4\n 13.07-30.12.2021"
+# titlel<-"COVID-19 reported\n 27.02.20-30.12.21"
+
+
+
+
+nuts3_case <- dat_county %>%select("NUTS_ID", "cases_wave2","pop_n")%>%
+  mutate(incper10k = cases_wave2/pop_n*10000)%>%
+  mutate(incper10k_group = cut(incper10k, breaks=c(-Inf,150,175,200,225,250,275,300,350,Inf)))
+
+nuts3_case <-merge(nuts3, nuts3_case , by = "NUTS_ID")
+
+#label
+legend_label=c("0-150", ">150-175", ">175-200",">200-225", ">225-250", ">250-275", ">275-300", ">300-350", ">350")
+
+w2 <- tm_shape(nuts3_case) +
+  tm_fill("incper10k_group", palette = "Blues", legend.show = F) + #Blues
+  tm_borders("black") +
+  tm_add_legend(title = "Incidence \n (per 10k)", labels = legend_label, col = RColorBrewer::brewer.pal(9, "Blues")) +
+  # \n : line down
+  tm_layout(title = paste0(title), title.fontfamily = "sans", title.size = 1.5,
+            title.fontface= "bold", title.position= c(0,0.9),frame=F,
+            legend.outside = F, legend.frame = F,
+            legend.position = c(0.85,0.0), legend.width = 1,
+            legend.title.size = 1.5, legend.text.size= 1.2,
+            legend.title.fontfamily ="sans",legend.title.fontface ="bold")
+# w2
+
+
+
+```
+
+##Wave 3 
+
+```{r}
+# title <-"COVID-19 reported_W1\n 27.02-30.06.2020"
+# title <-"COVID-19 reported_W2\n 01.07-22.02.2021"
+title <-"COVID-19 reported_W3\n 23.02-12.07.2021"
+# title <-"COVID-19 reported_W4\n 13.07-30.12.2021"
+# titlel<-"COVID-19 reported\n 27.02.20-30.12.21"
+
+
+
+nuts3_case <- dat_county %>%select("NUTS_ID", "cases_wave3","pop_n")%>%
+  mutate(incper10k = cases_wave3/pop_n*10000)%>%
+  mutate(incper10k_group = cut(incper10k, breaks=c(-Inf,150,175,200,225,250,275,300,350,Inf)))
+
+nuts3_case <-merge(nuts3, nuts3_case , by = "NUTS_ID")
+
+#label
+legend_label=c("0-150", ">150-175", ">175-200",">200-225", ">225-250", ">250-275", ">275-300", ">300-350", ">350")
+
+w3 <- tm_shape(nuts3_case) +
+  tm_fill("incper10k_group", palette = "Blues", legend.show = F) + #Blues
+  tm_borders("black") +
+  tm_add_legend(title = "Incidence \n (per 10k)", labels = legend_label, col = RColorBrewer::brewer.pal(9, "Blues")) +
+  # \n : line down
+  tm_layout(title = paste0(title), title.fontfamily = "sans", title.size = 1.5,
+            title.fontface= "bold", title.position= c(0,0.9),frame=F,
+            legend.outside = F, legend.frame = F,
+            legend.position = c(0.85,0.0), legend.width = 1,
+            legend.title.size = 1.5, legend.text.size= 1.2,
+            legend.title.fontfamily ="sans",legend.title.fontface ="bold")
+# w3
+
+```
+
+##Wave 4 
+
+```{r}
+# title <-"COVID-19 reported_W1\n 27.02-30.06.2020"
+# title <-"COVID-19 reported_W2\n 01.07-22.02.2021"
+# title <-"COVID-19 reported_W3\n 23.02-12.07.2021"
+title <-"COVID-19 reported_W4\n 13.07-29.12.2021"
+# titlel<-"COVID-19 reported\n 27.02.20-30.12.21"
+
+wave <- dat_county %>% select("NUTS_ID", "cases_wave4","pop_n")
+wave$incper10000<- wave$cases_wave4/wave$pop_n*10000
+
+
+
+
+
+nuts3_case <- dat_county %>%select("NUTS_ID", "cases_wave4","pop_n")%>%
+  mutate(incper10k = cases_wave4/pop_n*10000)%>%
+  mutate(incper10k_group = cut(incper10k, breaks=c(-Inf,150,175,200,225,250,275,300,350,Inf)))
+
+nuts3_case <-merge(nuts3, nuts3_case , by = "NUTS_ID")
+
+#label
+legend_label=c("0-150", ">150-175", ">175-200",">200-225", ">225-250", ">250-275", ">275-300", ">300-350", ">350")
+
+w4 <- tm_shape(nuts3_case) +
+  tm_fill("incper10k_group", palette = "Blues", legend.show = F) + #Blues
+  tm_borders("black") +
+  tm_add_legend(title = "Incidence \n (per 10k)", labels = legend_label, col = RColorBrewer::brewer.pal(9, "Blues")) +
+  # \n : line down
+  tm_layout(title = paste0(title), title.fontfamily = "sans", title.size = 1.5,
+            title.fontface= "bold", title.position= c(0,0.9),frame=F,
+            legend.outside = F, legend.frame = F,
+            legend.position = c(0.85,0.0), legend.width = 1,
+            legend.title.size = 1.5, legend.text.size= 1.2,
+            legend.title.fontfamily ="sans",legend.title.fontface ="bold")
+# w4
+
+```
+
+## entire pandamic and 4 waves
+
+Criteria for defining a wave?
+
+```{r}
+# title <-"COVID-19 reported_W1\n 27.02-30.06.2020"
+# title <-"COVID-19 reported_W2\n 01.07-22.02.2021"
+# title <-"COVID-19 reported_W3\n 23.02-12.07.2021"
+# title <-"COVID-19 reported_W4\n 13.07-30.12.2021"
+title <-"COVID-19 reported_4waves\n 27.02.20-29.12.21"
+
+
+nuts3_case <- dat_county %>%select("NUTS_ID", "cases","pop_n")%>%
+  mutate(incper10k = cases/pop_n*10000)%>%
+  mutate(incper10k_group = cut(incper10k, breaks=c(-Inf,550,600,650,700,750,800,850,900,Inf)))
+
+nuts3_case <-merge(nuts3, nuts3_case , by = "NUTS_ID")
+
+#label
+legend_label=c(">450-550", ">550-600",">600-650", ">650-700",">700-750", ">750-800", ">800-850", ">850-900",">900")
+
+w_all <- tm_shape(nuts3_case) +
+  tm_fill("incper10k_group", palette = "Oranges", legend.show = F) + #Blues
+  tm_borders("black") +
+  tm_add_legend(title = "Incidence \n (per 10k)", labels = legend_label, col = RColorBrewer::brewer.pal(9, "Oranges")) +
+  # \n : line down
+  tm_layout(title = paste0(title), title.fontfamily = "sans", title.size = 1.5,
+            title.fontface= "bold", title.position= c(0,0.9),frame=F,
+            legend.outside = F, legend.frame = F,
+            legend.position = c(0.85,0.0), legend.width = 1,
+            legend.title.size = 1.5, legend.text.size= 1.2,
+            legend.title.fontfamily ="sans",legend.title.fontface ="bold")
+# w_all
+
+
+
+# multiple plots in the same page 
+current.mode <- tmap_mode("plot")
+tmap_arrange(panel_gisd5,w_all, widths = c(0.5, 0.5))
+tmap_mode(current.mode)
+
 
 ```
 
 
 ```{r}
-#Online tutorial#########################
-#https://cran.r-project.org/web/packages/tmap/vignettes/tmap-getstarted.html
-##Hello World!#####################
-library(tmap)
-data("World")
 
-tm_shape(World) +
-  tm_polygons("HPI")
-##Interactive maps################
-tmap_mode("view")
+# # multiple plots in the same page 
+# ggpubr:: ggarrange(tmap_grob(w1), # tmap_grob: convert tmap into grob
+#                    tmap_grob(w2),
+#                    tmap_grob(w3),
+#                    tmap_grob(w4),
+#                    # labels = c("A", "B"),
+#                    ncol = 2, nrow = 2)
 
-tm_shape(World) +
-  tm_polygons("HPI")
-##Multiple shapes and layers####
-#A shape is a spatial object (with a class from sf, sp, stars, or raster).
-#Multiple shapes and also multiple layers per shape can be plotted:
-data(World, metro, rivers, land)
+current.mode <- tmap_mode("plot")
+tmap_arrange(w1, w2, w3, w4, widths = c(0.5, 0.5))
+tmap_mode(current.mode)
 
-tmap_mode("plot")
-## tmap mode set to plotting
-tm_shape(land) +
-  tm_raster("elevation", palette = terrain.colors(10)) +
-  tm_shape(World) +
-  tm_borders("white", lwd = .5) +
-  tm_text("iso_a3", size = "AREA") +
-  tm_shape(metro) +
-  tm_symbols(col = "red", size = "pop2020", scale = .5) +
-  tm_legend(show = FALSE)
-##Facets###################
-###1.assigning multiple variable names to one aesthetic###################
-tmap_mode("view")
-tm_shape(World) +
-  tm_polygons(c("HPI", "economy")) +
-  tm_facets(sync = TRUE, ncol = 2)
-###2.splitting the spatial data with the by argument of tm_facets#########
-tmap_mode("plot")
-##tmap mode set to plotting
 
-data(NLD_muni)
+```
 
-NLD_muni$perc_men <- NLD_muni$pop_men / NLD_muni$population * 100
 
-tm_shape(NLD_muni) +
-  tm_polygons("perc_men", palette = "RdYlBu") +
-  tm_facets(by = "province")
+# Heat map: 
 
-###3.using the tmap_arrange function######
-tmap_mode("plot")
-## tmap mode set to plotting
 
-data(NLD_muni)
-tm1 <- tm_shape(NLD_muni) + tm_polygons("population", convert2density = TRUE)
-tm2 <- tm_shape(NLD_muni) + tm_bubbles(size = "population")
+## Group scale 
 
-tmap_arrange(tm1, tm2)
-## Legend labels were too wide. Therefore, legend.text.size has been set to 0.27. Increase legend.width (argument of tm_layout) to make the legend wider and therefore the labels larger.
-## The legend is too narrow to place all symbol sizes.
-##Basemaps and overlay tile maps######
+```{r}
+
+# data at week level 
+dat_week <- dat %>%group_by(rep_week_date,county)%>% summarise(case =  n())
+dat_week <- merge(dat_week, gisd %>%select(county,pop_n, GISD_5), by = "county")
+dat_week$case_per100k<- dat_week$case/dat_week$pop_n*100000
+
+#division 0
+# dat_week$case_per100k_grouped <- cut(dat_week$case_per100k, breaks=c(-Inf, 5, 10, 15, 20,25,100,200,300,400,Inf))
+dat_week$case_per100k_grouped <- cut(dat_week$case_per100k, breaks=c(-Inf, 25, 50, 75, 100,150,200,250,300,350,400,Inf))
+
+
+
+
+# #label
+legend_label=c("0-25", ">25-50", ">50-75",">75-100", ">100-150", ">150-200",">200-250", ">250-300",">300-350", ">350-400", ">400")
+
+dat_week %>%
+  ggplot(aes(rep_week_date,county)) +
+  geom_tile(aes(fill=case_per100k_grouped ), colour = "black")+
+  geom_text(aes(label = round(case_per100k )), size = 1, colour = "#585858") + #size of number in each cell
+  #division 0
+  scale_fill_manual(values=c("#FFF7FC","#EDE7F3", "#D0D1E6", "#A6BDDC", "#74AAD0",
+                             "#3691C0", "#0470B0", "#044E7B", "#333F50", "#404040", "#262626"),
+                    label = legend_label) +
+  ## division 1,2,3
+  # scale_fill_brewer(palette = "Blues")+ #BuPu, BuGn, Blues, Oranges,Reds,....
+  labs(fill = "incidence \n(per 100k)", x="", y="")+
+  ggtitle("NRW_ weekly COVID-19 Incidence per 100k ")+
+  # facet_wrap(~GISD_5)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"),
+        legend.position="right",
+        legend.title=element_text(size=18, colour = "black", face = "bold") ,
+        legend.text=element_text(size=17, colour = "black"),
+        axis.title = element_text(size=18, face="bold", colour = "black"),
+        plot.title = element_text(face="bold", size=18, hjust=0.5),
+        axis.text.x = element_text(size = 8,  hjust = 1, colour = "black", angle = 30, face = "bold"),
+        axis.text.y = element_text(size = 8, face = "bold")) + 
+  scale_x_date(date_labels="%Y-%m-%m", date_breaks = "30 days", expand = c(0, 0)) +
+  # scale_x_continuous(expand=c(0,0)) +
+  scale_y_discrete(expand=c(0,0))
+
+
+
+```
+
+## Continuous scale
+
+```{r}
+
+
+# continues scale
+ggplot(dat_week, aes(rep_week_date, county)) +
+  geom_tile(aes(fill = case_per100k)) +
+  # coord_equal() +
+  # ggtitle(paste0("Wave ", wave_n)) +
+  # geom_text(aes(label=sprintf("%0.1f", round(case_per100k, digits = 2))), size = 2) +
+  scale_fill_gradient2(low = "white",
+                       # mid = "white",
+                       high = "blue", limits = c(0,600), midpoint = 12) +
+  guides(fill = guide_colourbar(barwidth = 0.5,
+                                 barheight = 5, title = "Incidence \n(per100k)")) +
+ scale_x_date(date_labels="%Y-%m-%m", date_breaks = "30 days", expand = c(0, 0))+
+  # scale_x_date(breaks = unique(dat_week$rep_week_date))+ # display all dates on x axis
+   ggtitle("NRW_ weekly COVID-19 Incidence per 100k ")+
+  theme(legend.position = "right")+
+  theme(plot.title = element_text(size = 10, face = "bold",hjust = 0.5),
+        axis.title = element_blank(),
+        axis.text.x = element_text(size = 6, face = "bold",angle = 30, vjust = 0.5),
+        axis.text.y = element_text(size = 8, face = "bold"),
+        axis.ticks.x = element_blank(),
+        plot.margin = unit(c(0, 0, 0, 0), "cm"), # reduce space for combination plot later
+
+                panel.background = element_blank())
+
+
+```
+
+## Add SES annotation
+
+COVID-19 incidence in each county over time vs social economic status
+
+**This figure can be sum by 4 wave only**
+
+
+```{r}
+
+# Heat map with deprivation index (GISD) annotation
+dat_week_long <- dat_week %>% select(GISD_5,county,rep_week_date,case_per100k)
+dat_week_long <- dat_week_long[order(dat_week_long$rep_week_date),] # sort data by time report
+
+dat_week_long <- dat_week_long %>%
+  pivot_wider(names_from = rep_week_date, values_from = case_per100k)#Transposing row values to colum
+dat_week_long <- dat_week_long[order(dat_week_long$GISD_5),] # sort data by GISD
+
+#annotation set
+label_gisd <- dat_week_long %>% select(county,GISD_5)# prepare for anotation heatmap
+rownames(label_gisd ) <- label_gisd$county
+label_gisd <- as.data.frame(label_gisd)
+label_gisd$GISD_5 <- as.character(label_gisd$GISD_5)
+label_gisd <- label_gisd[,-1, drop=F] # avoid row name disappear
+colnames(label_gisd) <- c("Deprivation_index")
+
+dat_week_long <- dat_week_long[,-1]# rm GISD
+rownames(dat_week_long) <- dat_week_long$county # convert county into rownames
+dat_week_long <- as.data.frame((dat_week_long )) # matrix for heatmap
+dat_week_long <- dat_week_long [,-1, drop=F]  # avoid row name disappear
+
+annotation_colors = list(
+ Deprivation_index = c("1"="#54278f","2"="#756bb1","3"="#9e9ac8","4"="#cbc9e2","5"="#f2f0f7"))
+
+pheatmap(dat_week_long,cluster_rows = F, cluster_cols = F,RColorBrewer::brewer.pal(name = "Blues", n =9), annotation_row = label_gisd,
+         annotation_colors= annotation_colors,annotation_names_row=F,
+           fontsize = 10,fontsize_row =7,fontsize_col = 6, legend_breaks = c(100, 200, 300, 400,500),
+         main = "NRW_ weekly COVID-19 Incidence per 100k ", legend_labels = c("100", "200", "300", "400","500"), legend = T,)
+
+
+
+# ggsave(paste0(path_results,"  ",".png"),com_FIG_1, width=13, height=8)
+
+
 ```
 

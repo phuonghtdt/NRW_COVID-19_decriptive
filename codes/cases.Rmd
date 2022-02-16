@@ -26,8 +26,6 @@ Sys.setlocale("LC_TIME", "C")
 BEGIN_RMD <- Sys.time() # Keeping track of running time
 options(warn = 1) # If warn is one, warnings are printed as they occur.
 
-
-
 #Loading package
 library(reshape2, ggplot2)
 library('ggplot2')
@@ -43,6 +41,8 @@ library(incidence)
 library(epitools)
 library(zoo) # rolling average
 library(readxl)
+library(ggpubr) # ggarrange
+library(grid)
 
 path_data <- paste0("C:/Users/huynh/sciebo/NRW_descriptive/data/")
 path_result <- paste0("C:/Users/huynh/sciebo/NRW_descriptive/results/COVID_19/")
@@ -230,6 +230,7 @@ dat_date$case_per100k_grouped <- factor(dat_date$case_per100k_grouped, levels=c(
 
 ```
 
+
 ###week level
 
 ####case
@@ -379,7 +380,7 @@ age_nrw %>%
           legend.position = "right",
           legend.text = element_text(colour = "black", size = 15),
           legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          plot.title = element_text(colour = "black", size = 14, face = "bold",
+          plot.title = element_text(colour = "black", size = 18, face = "bold",
                                     hjust = 0.5),
           strip.text = element_text(colour = "black", size = 12, face = "bold"))
 
@@ -394,6 +395,8 @@ age_nrw %>%
 ## Heatmap: by age
 
 ### Case
+
+There is a shift in age structure among COVID-19 infections, especially since wave 4. 
 
 ```{r}
 dat_week %>% 
@@ -415,7 +418,7 @@ dat_week %>%
         legend.title=element_text(size=18, colour = "black", face = "bold") ,
         legend.text=element_text(size=17, colour = "black"),
         axis.title = element_text(size=18, face="bold", colour = "black"),
-        plot.title = element_text(face="bold", size=15, hjust=0.5),
+        plot.title = element_text(face="bold", size=18, hjust=0.5),
         axis.text.x = element_text(size = 10,  hjust = 1, colour = "black", angle = 30, face = "bold"),
         axis.text.y = element_text(size = 10, face = "bold")) + 
   scale_x_date(date_labels="%Y-%m-%m", date_breaks = "30 days", expand = c(0, 0)) +
@@ -427,42 +430,41 @@ dat_week %>%
 ```
 
 
-### Hosp
+###Hosp
 
 ```{r}
-hosp_week %>%
-  ggplot(aes(rep_week_date, agegroup)) +
-  geom_tile(aes(fill=case_per100k_grouped), colour = "black")+
-  geom_text(aes(label = round(case_per100k)), size = 2, colour = "#585858") + #size of number in each cell
-  #division 0
-  scale_fill_manual(values=c("#FFF7FC","#EDE7F3", "#D0D1E6", "#A6BDDC", "#74AAD0",
-                             "#3691C0", "#0470B0", "#044E7B", "#333F50", "#404040", "#262626")) +
-  ## division 1,2,3
-  # scale_fill_brewer(palette = "Blues")+ #BuPu, BuGn, Blues, Oranges,Reds,....
-  labs(fill = "incidence \n(per 100k)", x="")+
-  ggtitle("NRW_ weekly COVID-19 hospitalised incidence per 100k 
-")+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-        panel.background = element_blank(), axis.line = element_line(colour = "black"),
-        legend.position="right",
-        legend.title=element_text(size=18, colour = "black", face = "bold") ,
-        legend.text=element_text(size=17, colour = "black"),
-        axis.title = element_text(size=18, face="bold", colour = "black"),
-        plot.title = element_text(face="bold", size=15, hjust=0.5),
-        axis.text.x = element_text(size = 10,  hjust = 1, colour = "black", angle = 30, face = "bold"),
-        axis.text.y = element_text(size = 10, face = "bold")) + 
- scale_x_date(date_labels="%Y-%m-%m", date_breaks = "30 days", expand = c(0, 0)) +
-  # scale_x_continuous(expand=c(0,0)) +
-  scale_y_discrete(expand=c(0,0))
-
-# ggsave(paste0(path_results,"  ",".png"),com_FIG_1, width=13, height=8)
+# hosp_week %>%
+#   ggplot(aes(rep_week_date, agegroup)) +
+#   geom_tile(aes(fill=case_per100k_grouped), colour = "black")+
+#   geom_text(aes(label = round(case_per100k)), size = 2, colour = "#585858") + #size of number in each cell
+#   #division 0
+#   scale_fill_manual(values=c("#FFF7FC","#EDE7F3", "#D0D1E6", "#A6BDDC", "#74AAD0",
+#                              "#3691C0", "#0470B0", "#044E7B", "#333F50", "#404040", "#262626")) +
+#   ## division 1,2,3
+#   # scale_fill_brewer(palette = "Blues")+ #BuPu, BuGn, Blues, Oranges,Reds,....
+#   labs(fill = "incidence \n(per 100k)", x="")+
+#   ggtitle("NRW_ weekly COVID-19 hospitalised incidence per 100k 
+# ")+
+#   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+#         panel.background = element_blank(), axis.line = element_line(colour = "black"),
+#         legend.position="right",
+#         legend.title=element_text(size=18, colour = "black", face = "bold") ,
+#         legend.text=element_text(size=17, colour = "black"),
+#         axis.title = element_text(size=18, face="bold", colour = "black"),
+#         plot.title = element_text(face="bold", size=15, hjust=0.5),
+#         axis.text.x = element_text(size = 10,  hjust = 1, colour = "black", angle = 30, face = "bold"),
+#         axis.text.y = element_text(size = 10, face = "bold")) + 
+#  scale_x_date(date_labels="%Y-%m-%m", date_breaks = "30 days", expand = c(0, 0)) +
+#   # scale_x_continuous(expand=c(0,0)) +
+#   scale_y_discrete(expand=c(0,0))
+# 
+# # ggsave(paste0(path_results,"  ",".png"),com_FIG_1, width=13, height=8)
 
 ```
 
 
 ## Histogram: by age
-### No pop. weighing
-#### Case
+### Case
 
 ```{r}
 
@@ -481,7 +483,7 @@ dat%>%
   scale_y_continuous(labels = scales::percent_format()) + 
   scale_fill_manual(values=palette, name="Age group") +
    labs(y="Propotion of reported case",x=" ")+
-  ggtitle(" Covid-19 reported  weekly in NRW")+
+  ggtitle(" Covid-19 Incidence in NRW_ weekly report")+
  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", expand = c(0, 0)) +
 theme(axis.text.x = element_text(colour = "black", size = 10,
                                      angle = 90, hjust = 0.5, vjust = 0,5),
@@ -492,7 +494,7 @@ theme(axis.text.x = element_text(colour = "black", size = 10,
           legend.position = "right",
           legend.text = element_text(colour = "black", size = 15),
           legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          plot.title = element_text(colour = "black", size = 14, face = "bold",
+          plot.title = element_text(colour = "black", size = 18, face = "bold",
                                     hjust = 0.5),
           strip.text = element_text(colour = "black", size = 12, face = "bold"))
 
@@ -503,7 +505,7 @@ theme(axis.text.x = element_text(colour = "black", size = 10,
 
 ```
 
-#### Hosp
+### Hosp
 
 ```{r}
 
@@ -514,7 +516,7 @@ dat%>%filter(hosp=="Ja")%>%
   scale_y_continuous(labels = scales::percent_format()) + 
   scale_fill_manual(values=palette, name="Age group") +
    labs(y="Propotion of reported case",x=" ")+
-  ggtitle(" Covid-19 hospitalisation weekly in NRW")+
+  ggtitle(" Hospitalisation attributed to COVID-19 in NRW_weekly report")+
  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", expand = c(0, 0)) +
 theme(axis.text.x = element_text(colour = "black", size = 10, 
                                      angle = 90, hjust = 0.5, vjust = 0,5),
@@ -525,7 +527,7 @@ theme(axis.text.x = element_text(colour = "black", size = 10,
           legend.position = "right",
           legend.text = element_text(colour = "black", size = 15),
           legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          plot.title = element_text(colour = "black", size = 14, face = "bold",
+          plot.title = element_text(colour = "black", size = 18, face = "bold",
                                     hjust = 0.5),
           strip.text = element_text(colour = "black", size = 12, face = "bold"))
 
@@ -534,81 +536,6 @@ theme(axis.text.x = element_text(colour = "black", size = 10,
 
 
 ```
-
-### Pop. weighing
-#### Case
-
-```{r}
-
-
-#create data structure for histogram
-#case prop_all age group################################
-histo_setup <- dat%>%
-  group_by(rep_week,rep_week_date, agegroup,pop_n) %>% dplyr::summarise(case_n=n()) 
-# histo_setup$maxrepweek <- max(histo_setup$rep_week)
-
-
-dat%>%
-  group_by(rep_week,rep_week_date, agegroup,pop_n) %>% dplyr::summarise(case_n=n())%>%
-  ggplot(aes(x=rep_week_date, y=case_n/pop_n*100000, fill=agegroup)) + # scale by age's pop 
-  geom_bar(position="fill", stat="identity")+
-  scale_y_continuous(labels = scales::percent_format()) + 
-  scale_fill_manual(values=palette, name="Age group") +
-   labs(y="Propotion of reported case per 100k",x=" ")+
-  ggtitle(" Covid-19 reported  weekly in NRW")+
- scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", expand = c(0, 0)) +
-theme(axis.text.x = element_text(colour = "black", size = 10, 
-                                     angle = 90, hjust = 0.5, vjust = 0,5),
-          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-          axis.title = element_text(colour = "black", size = 15, face = "bold"),
-          legend.background = element_blank(),
-          legend.key = element_blank(),
-          legend.position = "right",
-          legend.text = element_text(colour = "black", size = 15),
-          legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          plot.title = element_text(colour = "black", size = 14, face = "bold",
-                                    hjust = 0.5),
-          strip.text = element_text(colour = "black", size = 12, face = "bold"))
-
-
-# ggsave(paste0(path_results,"  ",".png"),com_FIG_1, width=13, height=8)
-
-
-```
-
-#### Hosp
-
-```{r}
-
-dat%>%filter(hosp=="Ja")%>%
-  group_by(rep_week,rep_week_date, agegroup,pop_n) %>% dplyr::summarise(case_n=n())%>%
-  ggplot(aes(x=rep_week_date, y=case_n/pop_n*100000, fill=agegroup)) + # scale by age's pop 
-  geom_bar(position="fill", stat="identity")+
-  scale_y_continuous(labels = scales::percent_format()) + 
-  scale_fill_manual(values=palette, name="Age group") +
-   labs(y="Propotion of reported case per 100k",x=" ")+
-  ggtitle(" Covid-19 hospitalisation weekly in NRW")+
- scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", expand = c(0, 0)) +
-theme(axis.text.x = element_text(colour = "black", size = 10, 
-                                     angle = 90, hjust = 0.5, vjust = 0,5),
-          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-          axis.title = element_text(colour = "black", size = 15, face = "bold"),
-          legend.background = element_blank(),
-          legend.key = element_blank(),
-          legend.position = "right",
-          legend.text = element_text(colour = "black", size = 15),
-          legend.title = element_text(colour = "black", size = 16, face = "bold"),
-          plot.title = element_text(colour = "black", size = 14, face = "bold",
-                                    hjust = 0.5),
-          strip.text = element_text(colour = "black", size = 12, face = "bold"))
-
-
-# ggsave(paste0(path_results,"  ",".png"),com_FIG_1, width=13, height=8)
-
-
-```
-
-
 
 
 ## Regardless of age
@@ -617,28 +544,35 @@ theme(axis.text.x = element_text(colour = "black", size = 10,
 
 ```{r}
 
-# weighing for pop
- dat%>%
-  group_by(rep_date) %>% dplyr::summarise(case_n=n())%>% #count case by week
-  ggplot()+
-  geom_line(aes(y=case_n/NRW_pop*100000, x=rep_date), size=1, colour="blue") +
+# 
+panel_case <- dat%>%
+  group_by(rep_date) %>% dplyr::summarise(case_n=n())%>% #count case by date
+  mutate(case_mean7da = zoo::rollmean(case_n, k = 7, fill = NA))%>%
+  ggplot(aes(x=rep_date))+
+  geom_line(aes(y=case_n, colour = "case_n"), size=1) +
+  geom_line(aes(y=case_mean7da,colour = "case_mean7da"), size=1) +
   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
                limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
                expand = c(0, 0)) +
-  labs(x = " ", y = "Reported cases per 100k pop.") +
-  ylim(0,60)+
-  ggtitle("COVID-19 in NRW_ daily report")+
+  labs(x = " ", y = "Reported number.") +
+  scale_color_manual(name = "", values = c("case_n"="blue","case_mean7da"="red"),
+                     labels = c("Raw Incidence",
+                                "Rolling ave.7days"))+
+  ylim(0,8500)+
+  ggtitle("COVID-19 Incidence in NRW_ daily report")+
   theme_classic()+
-   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-         axis.title = element_text(colour = "black", size = 15, face = "bold"),
-         legend.background = element_blank(),
-         legend.key = element_blank(),
-         legend.position = "right",
-         legend.text = element_text(colour = "black", size = 15),
-         legend.title = element_text(colour = "black", size = 16, face = "bold"),
-         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-         strip.text = element_text(colour = "black", size = 10, face = "bold"))
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.12,0.8),
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+panel_case 
 
 
 # ggsave(paste0(path_results,"  ",".png"),com_FIG_1, width=13, height=8)
@@ -647,18 +581,24 @@ theme(axis.text.x = element_text(colour = "black", size = 10,
 
 #### Hosp
 
-```{r}
+
+```{r eval=F,results='hide'}
 
 # Weighing for pop
  dat%>%filter(hosp=="Ja")%>%
-  group_by(rep_date) %>% dplyr::summarise(case_n=n())%>% #count case by week
-  ggplot()+
-  geom_line(aes(y=case_n/NRW_pop*100000, x=rep_date), size=1, colour="blue") +
-   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
+  group_by(rep_date) %>% dplyr::summarise(case_n=n())%>% #count case by date
+  mutate(case_mean7da = zoo::rollmean(case_n, k = 7, fill = NA))%>%
+  ggplot(aes(x=rep_date))+
+  geom_line(aes(y=case_n, colour = "case_n"), size=1) +
+  geom_line(aes(y=case_mean7da,colour = "case_mean7da"), size=1) +
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days",
                limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
                expand = c(0, 0)) +
-  labs(x = " ", y = "Reported hospitalisation per 100k pop.") +
-   ylim(0,6.0)+
+  labs(x = " ", y = "Reported number.") +
+   scale_color_manual(name = "", values = c("case_n"="blue","case_mean7da"="red"),
+                      labels = c("Raw Incidence",
+                                "Rolling ave.7days"))+
+   ylim(0,800.0)+
   ggtitle("COVID-19 hospitalisation in NRW_ daily report")+
   theme_classic()+
    theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
@@ -681,8 +621,6 @@ theme(axis.text.x = element_text(colour = "black", size = 10,
 #### ICU
 * This data from **211229 NRW dateninput modellierungen wwu** 
 
-The number is much higher than the line list. Check with Veronika again !
-
 The earliest time is **06.04.2020**  while the line list's **19.02.2020**
 
 Is normal mean non_hospitalization ? 
@@ -691,94 +629,78 @@ ICU = intensive + ventilation ??
 
 ```{r}
 colnames(hosp)
+
 hosp_melt <- melt(hosp, id.vars = c(1,6:8)) # id.vars indicate variables that you don't want to melt
 
-# Weighing for pop
+# Hospitalisation (all) 
 hosp_melt%>%
   ggplot()+
-  geom_line(aes(y=value/NRW_pop*100000, x=rep_date,color=variable)) +
+  geom_line(aes(y=value, x=rep_date,color=variable)) +
   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
                limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
                expand = c(0, 0)) +
-  labs(x = " ", y = "Reported number per 100k pop.", color="") +
-  ylim(0,60)+
-  ggtitle("COVID-19 in NRW_ daily report")+
+  labs(x = " ", y = "Reported number", color="") +
+  ylim(0,8000)+
+  ggtitle("Hospitalisation attributed to COVID-19 in NRW_daily report")+
   theme_classic()+
-   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-         axis.title = element_text(colour = "black", size = 15, face = "bold"),
-         legend.background = element_blank(),
-         legend.key = element_blank(),
-         legend.position = "right",
-         legend.text = element_text(colour = "black", size = 15),
-         legend.title = element_text(colour = "black", size = 16, face = "bold"),
-         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-         strip.text = element_text(colour = "black", size = 10, face = "bold"))
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.12,0.8),
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
 
 
-#Intensive case
-hosp%>%
+#Hospitalisation ( ICU = ventilation +intensive )
+hosp_melt <-  hosp%>%
+  group_by(rep_date,total, normal,intensive, ventilation) %>% dplyr::summarise(ICU =  sum(intensive,ventilation)) #count case by date
+hosp_melt <- melt(hosp_melt, id.vars = "rep_date") # id.vars indicate variables that you don't want to melt
+#
+panel_hosp <- hosp_melt%>%filter(variable!="intensive" &variable!="ventilation" )%>% # included in ICU
   ggplot()+
-  geom_line(aes(y=intensive/NRW_pop*100000, x=rep_date), size=1, colour="blue") +
+  geom_line(aes(y=value, x=rep_date,color=variable)) +
   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
                limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
                expand = c(0, 0)) +
-  labs(x = " ", y = "Reported number per 100k pop.") +
-   ylim(0,6.0)+
-  ggtitle("COVID-19 hospitalisation (intensive) in NRW_ daily")+
+  labs(x = " ", y = "Reported number", color="") +
+  ylim(0,8000)+
+  ggtitle("Hospitalisation attributed to COVID-19 in NRW_daily report")+
   theme_classic()+
-   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-         axis.title = element_text(colour = "black", size = 15, face = "bold"),
-         legend.background = element_blank(),
-         legend.key = element_blank(),
-         legend.position = "right",
-         legend.text = element_text(colour = "black", size = 15),
-         legend.title = element_text(colour = "black", size = 16, face = "bold"),
-         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-         strip.text = element_text(colour = "black", size = 10, face = "bold"))
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.12,0.8),
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
 
-#Ventilation case
-hosp%>%
-  ggplot()+
-  geom_line(aes(y=ventilation/NRW_pop*100000, x=rep_date), size=1, colour="blue") +
-   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
-               limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
-               expand = c(0, 0)) +
-  labs(x = " ", y = "Reported number per 100k pop.") +
-   ylim(0,6.0)+
-  ggtitle("COVID-19 hospitalisation (ventilator) in NRW_ daily")+
-  theme_classic()+
-   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-         axis.title = element_text(colour = "black", size = 15, face = "bold"),
-         legend.background = element_blank(),
-         legend.key = element_blank(),
-         legend.position = "right",
-         legend.text = element_text(colour = "black", size = 15),
-         legend.title = element_text(colour = "black", size = 16, face = "bold"),
-         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-         strip.text = element_text(colour = "black", size = 10, face = "bold"))
 
 
 #ICU : intensive + ventilation ???
- hosp%>%
-  group_by(rep_date) %>% dplyr::summarise(ICU= sum(intensive,ventilation))%>% #count case by week
+panel_ICU <-  hosp%>%
+  group_by(rep_date) %>% dplyr::summarise(ICU= sum(intensive,ventilation))%>% #count case by date
   ggplot()+
-  geom_line(aes(y=ICU/NRW_pop*100000, x=rep_date), size=1, colour="blue") +
-   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
+  geom_line(aes(y=ICU, x=rep_date), size=1, colour="blue") +
+   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days",
                limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
                expand = c(0, 0)) +
-  labs(x = " ", y = "Reported number per 100k pop.") +
-   ylim(0,7.0)+
-  ggtitle("COVID-19 hospitalisation (ICU) in NRW_ daily")+
+  labs(x = " ", y = "Reported number") +
+   ylim(0,2000)+
+  ggtitle("Hospitalisation (ICU) attributed to COVID-19 in NRW_daily reportin NRW_ daily")+
   theme_classic()+
    theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
          axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
          axis.title = element_text(colour = "black", size = 15, face = "bold"),
          legend.background = element_blank(),
          legend.key = element_blank(),
-         legend.position = "right",
+         legend.position ="right",
          legend.text = element_text(colour = "black", size = 15),
          legend.title = element_text(colour = "black", size = 16, face = "bold"),
          plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
@@ -791,22 +713,53 @@ hosp%>%
 
 ```
 
+#### panel:
 
-### weekly
-#### Case 
+These two graphs are generated from two different data sets. The line list has to be calibrated for under-reporting! 
+
+Is there any more reliable incidence report?  
 
 ```{r}
+# multiple plots in the same page 
+panel <- ggarrange(panel_case +rremove("x.text")+rremove("y.title"), 
+          panel_hosp +rremove("y.title"),
+          labels = c("A", "B"),
+          ncol = 1, nrow = 2)
 
-# Weighing for pop 
+annotate_figure(panel, 
+                left = textGrob("Reported number ", rot = 90, vjust = 0.5, gp = gpar(cex = 1.5)))
+           
+
+# # 
+# panel <- ggarrange(panel_case +rremove("x.text")+rremove("y.title"), 
+#           panel_hosp +rremove("x.text")+rremove("y.title"),
+#           panel_ICU+rremove("y.title"),
+#           labels = c("A", "B", "C"),
+#           ncol = 1, nrow = 3)
+# 
+# annotate_figure(panel, 
+#                 left = textGrob("Reported number ", rot = 90, vjust = 0.5, gp = gpar(cex = 1.5)))
+               
+
+```
+
+
+###weekly
+
+####Case 
+
+```{r eval=F,results='hide'}
+
+# Weighing for pop
 dat%>%
   group_by(rep_week_date) %>% dplyr::summarise(case_n=n())%>% #count case by week
   ggplot()+
-  geom_line(aes(y=case_n/NRW_pop*100000, x=rep_week_date), size=1, colour="blue") +
- scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
+  geom_line(aes(y=case_n, x=rep_week_date), size=1, colour="blue") +
+ scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days",
                limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
                expand = c(0, 0)) +
-  labs(x = " ", y = "Reported cases per 100k pop.") +
-  ylim(0,400)+
+  labs(x = " ", y = "Reported number.") +
+  ylim(0,40000)+
   ggtitle("COVID-19 in NRW_ weekly report")+
   theme_classic()+
    theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
@@ -828,20 +781,20 @@ dat%>%
 
 ```
 
-#### Hosp
+####Hosp
 
-```{r}
+```{r eval=F, results='hide'}
 
-# Weighing for pop 
+# Weighing for pop
 dat%>%filter(hosp=="Ja")%>%
   group_by(rep_week_date) %>% dplyr::summarise(case_n=n())%>% #count case by week
   ggplot()+
-  geom_line(aes(y=case_n/NRW_pop*100000, x=rep_week_date), size=1, colour="blue") +
-  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
+  geom_line(aes(y=case_n, x=rep_week_date), size=1, colour="blue") +
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days",
                limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
                expand = c(0, 0)) +
-  labs(x = " ", y = "Reported hospitalisation per 100k pop.") +
-  ylim(0,40.0)+
+  labs(x = " ", y = "Reported number") +
+  ylim(0,4000.0)+
   ggtitle("COVID-19 hospitalisation in NRW_ weekly report")+
   theme_classic()+
    theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
@@ -855,7 +808,6 @@ dat%>%filter(hosp=="Ja")%>%
          plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
          strip.text = element_text(colour = "black", size = 10, face = "bold"))
 
-# # No Weighing for pop 
 
 
 # ggsave(paste0(path_results,"  ",".png"),com_FIG_1, width=13, height=8)
@@ -864,23 +816,23 @@ dat%>%filter(hosp=="Ja")%>%
 
 ```
 
-#### ICU
+####ICU
 
-```{r}
+```{r eval=F, results='hide'}
 
-colnames(hosp) 
+colnames(hosp)
 hosp_melt <- melt(hosp, id.vars = c(1,6:8)) # id.vars indicate variables that you don't want to melt
 
 #Weighing for pop
 hosp_melt%>%
   group_by(rep_week_date,variable) %>% dplyr::summarise(value=sum(value))%>% #count... by week
   ggplot()+
-  geom_line(aes(y=value/NRW_pop*100000, x=rep_week_date,color=variable)) +
-  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
+  geom_line(aes(y=value, x=rep_week_date,color=variable)) +
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days",
                limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
                expand = c(0, 0)) +
-  labs(x = " ", y = "Reported number per 100k pop.", color="") +
-  ylim(0,400)+
+  labs(x = " ", y = "Reported number", color="") +
+  ylim(0,40100)+
   ggtitle("COVID-19 in NRW_ weekly ")+
   theme_classic()+
   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
@@ -896,64 +848,17 @@ hosp_melt%>%
 
 
 
-# Intensive
-
-hosp%>%
-  group_by(rep_week_date) %>% dplyr::summarise(intensive=sum(intensive))%>% #count... by week
-  ggplot()+
-  geom_line(aes(y=intensive/NRW_pop*100000, x=rep_week_date), size=1, colour="blue") +
-  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
-               limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
-               expand = c(0, 0)) +
-  labs(x = " ", y = "Reported number per 100k pop.") +
-  ylim(0,40.0)+
-  ggtitle("COVID-19 hospitalisation (intensive) in NRW_ daily")+
-  theme_classic()+
-  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-        axis.title = element_text(colour = "black", size = 15, face = "bold"),
-        legend.background = element_blank(),
-        legend.key = element_blank(),
-        legend.position = "right",
-        legend.text = element_text(colour = "black", size = 15),
-        legend.title = element_text(colour = "black", size = 16, face = "bold"),
-        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-        strip.text = element_text(colour = "black", size = 10, face = "bold"))
-
-# Ventilation
-
-hosp%>%
-  group_by(rep_week_date) %>% dplyr::summarise(ventilation=sum(ventilation))%>% #count... by week
-  ggplot()+
-  geom_line(aes(y=ventilation/NRW_pop*100000, x=rep_week_date), size=1, colour="blue") +
-  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
-               limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
-               expand = c(0, 0)) +
-  labs(x = " ", y = "Reported number per 100k pop.") +
-  ylim(0,40.0)+
-  ggtitle("COVID-19 hospitalisation (ventilation) in NRW_ daily")+
-  theme_classic()+
-  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
-        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
-        axis.title = element_text(colour = "black", size = 15, face = "bold"),
-        legend.background = element_blank(),
-        legend.key = element_blank(),
-        legend.position = "right",
-        legend.text = element_text(colour = "black", size = 15),
-        legend.title = element_text(colour = "black", size = 16, face = "bold"),
-        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-        strip.text = element_text(colour = "black", size = 10, face = "bold"))
 
 # ICU: intensive + Ventilation???
 
 hosp%>%
-  group_by(rep_week_date) %>% dplyr::summarise(ICU=sum(intensive ,ventilation))%>% #count... by week
+  group_by(rep_week_date) %>% dplyr::summarise(ICU=sum(intensive +ventilation))%>% #count... by week
   ggplot()+
-  geom_line(aes(y=ICU/NRW_pop*100000, x=rep_week_date), size=1, colour="blue") +
-  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
+  geom_line(aes(y=ICU, x=rep_week_date), size=1, colour="blue") +
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days",
                limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
                expand = c(0, 0)) +
-  labs(x = " ", y = "Reported number per 100k pop.") +
+  labs(x = " ", y = "Reported number") +
   # ylim(0,40.0)+
   ggtitle("COVID-19 hospitalisation (ICU) in NRW_ daily")+
   theme_classic()+

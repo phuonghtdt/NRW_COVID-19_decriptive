@@ -17,10 +17,12 @@ All computations were performed with `r R.Version()$version.string`.
 This work is adapted from Veronika's codes
 
 ```{r set up, include=FALSE}
+
 rm(list = ls())
 knitr::opts_chunk$set(fig.retina = 1, fig.height = 7, fig.width = 14,
                       echo = FALSE, message = FALSE, warning = FALSE,
                       results='hide')
+
 Sys.setlocale("LC_TIME", "C")
 BEGIN_RMD <- Sys.time() # Keeping track of running time
 set.seed(75876342)
@@ -2451,6 +2453,7 @@ panel_covimod <- ggplot(dt, aes( x=wave_date, y=value, colour=variable, fill=var
   labs(y="Mean_contacts",x="Start date of each wave")+
    ggtitle("Mean contacts over time in NRW (COVIMOD)")+
     scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
+     coord_cartesian( ylim = c(0,6.5))+
  theme_classic()+
     theme(axis.text.x = element_text(colour = "black", size = 10, 
                                      angle = 90, hjust = 0.5, vjust = 0,5),
@@ -2458,7 +2461,7 @@ panel_covimod <- ggplot(dt, aes( x=wave_date, y=value, colour=variable, fill=var
           axis.title = element_text(colour = "black", size = 15, face = "bold"),
           legend.background = element_blank(),
           legend.key = element_blank(),
-          legend.position = c(0.3,0.8),
+          legend.position = c(0.28,0.9),
           legend.text = element_text(colour = "black", size = 15),
           legend.title = element_blank(),
           plot.title = element_text(colour = "black", size = base_size + 8, face = "bold",
@@ -2494,6 +2497,7 @@ ggplot(dt, aes( x=wave_date, y=value, colour=variable, fill=variable ))+
                     )+ # color for mean points
   
   scale_x_continuous(breaks = seq(1,current_wave,2))+
+    coord_cartesian( ylim = c(0, 6))+
   # scale_x_discrete("",labels = c(WAVES))+ #
   labs(y="Mean_contacts",x="Start date of each wave")+
    ggtitle("Mean contacts over time in NRW")+
@@ -2944,6 +2948,7 @@ p<- ggplot(melt_cm, aes(contact.age.group, Var1)) +
         panel.background = element_blank())
   
 plot_list[[wave_n]] = p # store plots in the list
+
 }
 
 

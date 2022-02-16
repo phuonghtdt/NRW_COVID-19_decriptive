@@ -74,7 +74,7 @@ NRW_pop_vacc <- NRW_pop - NRW_under12
 
 #Data
 
-BUND data is summed by vaccine types daily while LK data is at individual level with age group but without vacine types.
+BUND data is summed by vaccine types daily while LK data is at individual level with age group but without vaccine types.
 
 ```{r}
 # File_paths
