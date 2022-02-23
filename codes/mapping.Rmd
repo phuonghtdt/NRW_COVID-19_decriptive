@@ -14,6 +14,8 @@ Date: <b>`r format(Sys.Date(), "%B %d, %Y")`</b>
 
 All computations were performed with `r R.Version()$version.string`.
 
+To be commit:
+
 ```{r setup, include=FALSE}
 
 rm(list = ls())
@@ -48,6 +50,10 @@ NRW_pop <- 17925570
 NRW_under12 <- 2014762
 NRW_vacc <- NRW_pop - NRW_under12
 start_day <- as.Date("2020-02-27")# data before this day won't be counted
+
+#Under report
+u_report_w1 <- 0.78
+u_report_w2 <- 0.25
 # pop(https://www.destatis.de/DE/Home/_inhalt.html)
 #ref map: https://www.mags.nrw/matchingberater-karte
 #NRW pop. by county: http://www.citypopulation.de/en/germany/cities/nordrheinwestfalen/
@@ -167,6 +173,103 @@ dat_county <- merge(dat_county,nuts3, by = "county")
 
 ```
 
+## Underreporting
+
+Ref: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8583384/
+Seroprevalence study per wave:
+ MUSPAD:5 study cite:
+ - seroprevalence (<3%) until Mid-December 2020 in all regions.
+ - 5.4% in February 2021
+ - show proportions of infections detected by notifications to be 20 - 40% ( till 11/20)
+ - infections detected by notifications increased to 40-50% (wave2)
+
+
+
+
+```{r eval= FALSE, echo=FALSE}
+
+#Wave1:
+#MUSPAD study
+##Aachen: 09/09-09/10/2020
+study_seropos <- 0.023 #(2.3% [1.7-3.1])
+wave1 <- dat %>% filter(rep_date <= as.Date("2020-10-09"))
+report_ratio <- nrow(wave1)/NRW_pop
+1-report_ratio/study_seropos # under report 81%
+
+report_ratio <- 0.005 #0.5% of this this district only
+1-report_ratio/study_seropos # under report 78.3%%
+
+# other studies
+## Blood sample in NRW: 9/3-3/6/2020
+study_seropos <- 0.009 #(0.9% [0.5-1.4])
+wave1 <- dat %>% filter(rep_date <= as.Date("2020-06-03"))
+report_ratio <- nrow(wave1)/NRW_pop
+1-report_ratio/study_seropos # under report 76%
+
+## SeroDUS1, Dusseldorf: 2/11-23/11/2020
+study_seropos <- 0.031 #(3.1% [2.4-4.0])
+wave1 <- dat %>% filter(rep_date <= as.Date("2020-11-23"))
+report_ratio <- nrow(wave1)/NRW_pop
+1-report_ratio/study_seropos # under report 76%
+
+
+#wave 12: Aachen 25/01/2021-27/02/2021:
+
+study_seropos <- 0.054 #(5.4% [4.4-6.5])
+wave12 <- dat %>% filter(rep_date <= as.Date("2021-02-27"))
+report_ratio <- nrow(wave12)/NRW_pop
+1-report_ratio/study_seropos # under report 45%
+
+
+## Calculate under report in wave 2 only
+
+wave1 <- dat %>% filter(rep_date <= as.Date("2020-10-09"))
+wave1 <- nrow(wave1) # total case reported wave 1
+wave12 <- dat %>% filter(rep_date <= as.Date("2021-02-27"))
+wave12 <- nrow(wave12)# total case reported up to wave 2
+wave2 <- wave12 - wave1# total case reported wave 2
+
+report_w1 <- 0.22 # under_report 78%
+report_w12 <- 0.55 # under_report45%
+report_w2 <- wave2/(wave12/report_w12 - wave1/report_w1)
+
+under_report_w2 <- 1- report_w2 # 25%
+
+
+```
+
+
+## week level
+
+
+
+```{r}
+##sum cases of each agegroup by week
+dat_week <- dat %>%
+  group_by(rep_week_date,rep_week,agegroup) %>%
+  dplyr::summarise(case=n()) %>% #sum cases per week by age groups
+  ungroup() 
+
+## Under report
+dat_week$case_scaled <- NA
+
+dat_week$case_scaled[dat_week$rep_week_date <= as.Date("2020-10-09")] <- ceiling(dat_week$case[dat_week$rep_week_date <= as.Date("2020-10-09")]/(1-u_report_w1))
+
+
+dat_week$case_scaled[dat_week$rep_week_date > as.Date("2020-10-09")] <- ceiling(dat_week$case[dat_week$rep_week_date > as.Date("2020-10-09")]/(1-u_report_w2))
+
+dat_week_dummy <- dat_week %>%
+  group_by(rep_week_date)%>%
+  summarise_if(is.numeric,sum) %>% #sum cases per week by age groups
+  ungroup() 
+dat_week_dummy$case_scaled_per100k <- dat_week_dummy$case_scaled/NRW_pop*100000
+dat_week_dummy$case_per100k <- dat_week_dummy$case/NRW_pop*100000
+
+
+
+```
+
+
 # SES
 
 * NRW social economic status
@@ -227,13 +330,18 @@ panel_gisd5
 
 
 # COVID-19 mapping
-##Wave1
 
-At the start, the incidences are still small. The incidence grouping should also be small to see the difference among counties. So the colour visualization is to compare within the wave. However, from wave two onward, the scale is similar.  
+
+At the start, the incidences are still small. The incidence grouping should also be small to see the difference among counties. So the color visualization is to compare within the wave. However, from wave two onward, the scale is similar.  
 
 For across waves comparison, please notice the legend!
 
-Testing volumes may have been insufficient early in the pandemic 
+Testing volumes may have been insufficient early in the pandemic.
+
+Average case per week in each wave may be more comparable due to different length in each wave. 
+
+
+##Wave1
 
 ```{r}
 title <-"COVID-19 reported_W1\n 27.02-30.06.2020"
@@ -561,7 +669,7 @@ dat_week_long <- as.data.frame((dat_week_long )) # matrix for heatmap
 dat_week_long <- dat_week_long [,-1, drop=F]  # avoid row name disappear
 
 annotation_colors = list(
- Deprivation_index = c("1"="#54278f","2"="#756bb1","3"="#9e9ac8","4"="#cbc9e2","5"="#f2f0f7"))
+ Deprivation_index = c("1"="#9e9ac8","2"="#807dba","3"="#6a51a3","4"="#54278f","5"="#3f007d"))
 
 pheatmap(dat_week_long,cluster_rows = F, cluster_cols = F,RColorBrewer::brewer.pal(name = "Blues", n =9), annotation_row = label_gisd,
          annotation_colors= annotation_colors,annotation_names_row=F,
