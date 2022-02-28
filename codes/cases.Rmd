@@ -54,7 +54,7 @@ library(ggpubr) #ggarrange
 library(pheatmap)
 
 path_data <- paste0("C:/Users/huynh/sciebo/NRW_descriptive/data")
-path_result <- paste0("C:/Users/huynh/sciebo/NRW_descriptive/results/COVID_19")
+path_result <- paste0("C:/Users/huynh/sciebo/NRW_descriptive/results")
 
 ```
 
@@ -143,6 +143,23 @@ gisd$county <- gsub(",.*", "", gisd$county) #rm string after comma
 gisd <- merge(nuts3,gisd, by = "county")    # add NUTS info
 # gisd$GISD_5 <- as.factor(gisd$GISD_5)
 
+#(7) Regulations
+
+## Bundesland level
+reg_bund <- read.csv(paste0(path_data,"/bl_massnahmen_oberkategorien.csv"),row.names = 1, encoding="UTF-8")# encoding="UTF-8" : umlaut character)
+reg_bund <- reg_bund %>% filter(bundesland == "Nordrhein-Westfalen")
+reg_bund <- reg_bund %>% select(-c(ags2, bundesland))
+
+reg_bund <- pivot_longer(reg_bund, cols=2:dim(reg_bund)[2], names_to = "date", values_to = "measure_imp") # transpose from cols to rows
+reg_bund$date <- gsub("^.{0,1}", "", reg_bund$date)# Replace first character () with empty string ""
+reg_bund$date <- as.Date(reg_bund$date , format="%Y%m%d")
+reg_bund$measure_imp <- as.factor(reg_bund$measure_imp)
+
+
+## Landkreis level
+reg_lk <- read.csv(paste0(path_data,"/kr_massnahmen_oberkategorien.csv"),row.names = 1, encoding="UTF-8")# encoding="UTF-8" : umlaut character)
+reg_lk <- reg_lk %>% filter(bundesland == "Nordrhein-Westfalen")
+reg_lk <- reg_lk %>% filter(m_code != "M22"&m_code != "M23"&m_code != "M24")# these measures were not applied
 
 ```
 
@@ -341,7 +358,16 @@ dat_date$case_per100k_grouped <- cut(dat_date$case_per100k, breaks=c(-Inf, 5, 10
 dat_date$case_per100k_grouped <- factor(dat_date$case_per100k_grouped, levels=c("(-Inf,5]", "(5,10]", "(10,15]", "(15,20]", "(20,35]", "(35,50]","(50,100]", "(100,150]", "(150,200]", "(200,300]", "(300, Inf]"),
                       labels=c("0-5",">5-10",">10-15", ">15-20", ">20-35", ">35-50", ">50-100", ">100-150",">150-200", ">200-300", ">300"), ordered=T)
 
+##average case of 7 days ago
+dat_date_dummy <- dat %>%
+  group_by(rep_date,rep_week_date) %>%
+  dplyr::summarise(case=n()) %>% # sum cases per date in all age groups
+  ungroup()%>%
+  mutate(case_ave_7day = rollapply(case,7,function(x) sum(x)/7,fill=NA, align="right"),
+         case_7day = rollapply(case,7,function(x) sum(x),fill=NA, align="right"))#Ave. 7days ago
 
+dat_date_dummy$case_per100k <- dat_date_dummy$case/NRW_pop*100000
+dat_date_dummy$case_7day_per100k <- dat_date_dummy$case_7day/NRW_pop*100000
 
 
 ```
@@ -398,12 +424,14 @@ dat_week$case_scaled[dat_week$rep_week_date <= as.Date("2020-10-09")] <- ceiling
 dat_week$case_scaled[dat_week$rep_week_date > as.Date("2020-10-09")] <- ceiling(dat_week$case[dat_week$rep_week_date > as.Date("2020-10-09")]/(1-u_report_w2))
 
 dat_week_dummy <- dat_week %>%
+  filter(agegroup!="allAge")%>% # allAge is sum of all age group # duplicate data
+  select(rep_week_date,case,case_scaled)%>%
   group_by(rep_week_date)%>%
-  summarise_if(is.numeric,sum) %>% #sum cases per week by age groups
+  summarise_if(is.numeric,sum) %>% #sum cases per week
   ungroup() 
-dat_week_dummy$case_scaled_per100k <- dat_week_dummy$case_scaled/NRW_pop*100000
-dat_week_dummy$case_per100k <- dat_week_dummy$case/NRW_pop*100000
 
+dat_week_dummy$case_per100k <- dat_week_dummy$case/NRW_pop*100000
+dat_week_dummy$case_scaled_per100k <- dat_week_dummy$case_scaled/NRW_pop*100000
 
 
 ```
@@ -460,31 +488,50 @@ Variant of concern (earliest sample [place]- designated VOC)
 
 
 #group data by county and wave
+## original data
 dat_county <- dat %>% group_by(county) %>%
   dplyr::summarise(cases=n())%>%
   ungroup() 
-dat_county_wave1 <- dat %>%filter(rep_date <= as.Date("2020-06-30")) %>% group_by(county) %>%
+dat_county_wave1 <- dat %>%filter(rep_date <= as.Date("2020-09-29")) %>% group_by(county) %>%
   dplyr::summarise(case_wave1=n())%>%
   ungroup() 
-dat_county_wave2 <- dat %>%filter(rep_date > as.Date("2020-06-30")&rep_date <= as.Date("2021-02-22")) %>% group_by(county) %>%
+dat_county_wave2 <- dat %>%filter(rep_date >= as.Date("2020-09-30")&rep_date <= as.Date("2021-02-16")) %>% group_by(county) %>%
   dplyr::summarise(case_wave2=n())%>%
   ungroup() 
-dat_county_wave3 <- dat %>%filter(rep_date > as.Date("2021-02-22")&rep_date <= as.Date("2021-07-12")) %>% group_by(county) %>%
+dat_county_wave3 <- dat %>%filter(rep_date >= as.Date("2021-02-24")&rep_date <= as.Date("2021-06-01")) %>% group_by(county) %>%
   dplyr::summarise(case_wave3=n())%>%
   ungroup() 
-dat_county_wave4 <- dat %>%filter(rep_date > as.Date("2021-07-12")&rep_date <= as.Date("2021-12-30")) %>% group_by(county) %>%
+dat_county_wave4 <- dat %>%filter(rep_date >= as.Date("2021-07-28")&rep_date <= as.Date("2021-09-28")) %>% group_by(county) %>%
   dplyr::summarise(case_wave4=n())%>%
-  ungroup() 
+  ungroup()
 
 # dat_county1 <- left_join (dat_county,dat_county_wave1,dat_county_wave2,dat_county_wave3,dat_county_wave4, by="county")
 dat_county <- left_join (dat_county,dat_county_wave1)
 dat_county <- left_join (dat_county,dat_county_wave2)
 dat_county <- left_join (dat_county,dat_county_wave3)
 dat_county <- left_join (dat_county,dat_county_wave4)
+
 rm(dat_county_wave1,dat_county_wave2,dat_county_wave3,dat_county_wave4)
 
+# add GISD data
+dat_county <- merge(dat_county, gisd %>%select(county,GISD_5,pop_n), by = "county")
+
+# duration each wave
+duration_w1<- 30
+duration_w2<- 20
+duration_w3<- 14
+duration_w4<- 09
+
+dat_county <- dat_county%>%
+  mutate(case_perwk_100k_w1 = case_wave1/duration_w1/pop_n*100000,
+         case_perwk_100k_w2 = case_wave2/duration_w2/pop_n*100000,
+         case_perwk_100k_w3 = case_wave3/duration_w3/pop_n*100000,
+         case_perwk_100k_w4 = case_wave4/duration_w4/pop_n*100000)
+
+dat_county <- dat_county %>% select (-c("pop_n"))# avoid duplicated later
 
 dat_county <- merge(dat_county,nuts3, by = "county")
+
 
 
 ```
@@ -990,6 +1037,7 @@ nuts3_case <- dat_county %>%select("NUTS_ID", "case_wave1","pop_n")%>%
 
 nuts3_case <-merge(nuts3, nuts3_case , by = "NUTS_ID")
 
+
 #copy abow where appropriate
 legend_label=c("0-10",">10-15",">15-20", ">20-25", ">25-30", ">30-35", ">35-40", ">40-45",">45")
 
@@ -1273,9 +1321,7 @@ ggplot(dat_week, aes(rep_week_date, county)) +
 ## Add SES annotation
 
 COVID-19 incidence in each county over time vs social economic status
-
-**This figure can be sum by 4 wave only**
-
+### by week
 
 ```{r}
 
@@ -1315,4 +1361,116 @@ pheatmap(dat_week_long,cluster_rows = F, cluster_cols = F,RColorBrewer::brewer.p
 
 ```
 
+### by wave
+
+The average number of case per week in each wave
+
+```{r}
+
+# Heat map with deprivation index (GISD) annotation
+dat_county_long <- dat_county %>% select(GISD_5,county,contains("perwk"))
+
+dat_county_long <- dat_county_long[order(dat_county_long$GISD_5),] # sort data by GISD index
+#annotation set
+label_gisd <- dat_county_long %>% select(county,GISD_5)# prepare for anotation heatmap
+rownames(label_gisd ) <- label_gisd$county
+label_gisd <- as.data.frame(label_gisd)
+label_gisd$GISD_5 <- as.character(label_gisd$GISD_5)
+label_gisd <- label_gisd[,-1, drop=F] # avoid row name disappear
+colnames(label_gisd) <- c("Deprivation_index")
+
+dat_county_long <- dat_county_long[,-1]# rm GISD
+rownames(dat_county_long) <- dat_county_long$county # convert county into rownames
+dat_county_long <- as.data.frame((dat_county_long )) # matrix for heatmap
+dat_county_long <- dat_county_long [,-1, drop=F]  # avoid row name disappear
+colnames(dat_county_long) <- c("wave1","wave2", "wave3", "wave4") # rename cols
+annotation_colors = list(
+ Deprivation_index = c("1"="#9e9ac8","2"="#807dba","3"="#6a51a3","4"="#54278f","5"="#3f007d"))
+
+pheatmap(dat_county_long,cluster_rows = F, cluster_cols = F,RColorBrewer::brewer.pal(name = "Blues", n =9), annotation_row = label_gisd,
+         annotation_colors= annotation_colors,annotation_names_row=F,
+        fontsize = 10,fontsize_row =7,fontsize_col = 6,
+        # legend_breaks = c(100, 200, 300, 400,500),
+        main = "Average infections per week per 100k inhatbitants", 
+        # legend_labels = c("100", "200", "300", "400","500"), 
+        legend = T, angle_col = 0)
+
+
+
+# ggsave(paste0(path_results,"  ",".png"),com_FIG_1, width=13, height=8)
+
+
+```
+
+# Regulation
+
+## NRW level
+
+```{r}
+p <- reg_bund %>%
+  ggplot(aes(date,m_code)) +
+  geom_tile(aes(fill=measure_imp ))+
+  scale_fill_manual(values=c("#ffffbf","#fc8d59"),
+                    label = c("No","Yes")) +
+  labs(fill = "Measure \n implement", x="", y="Measures")+
+  ggtitle("Measures against spreading of COVID-19 in NRW")+
+  # facet_wrap(~GISD_5)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"),
+        legend.position="right",
+        legend.title=element_text(size=18, colour = "black", face = "bold") ,
+        legend.text=element_text(size=17, colour = "black"),
+        axis.title = element_text(size=18, face="bold", colour = "black"),
+        plot.title = element_text(face="bold", size=18, hjust=0.5),
+        axis.text.x = element_text(size = 8,  hjust = 1, colour = "black", angle = 30, face = "bold"),
+        axis.text.y = element_text(size = 8, face = "bold")) + 
+  scale_x_date(date_labels="%Y-%m-%m", date_breaks = "21 days",expand = c(0, 0)) +
+  scale_y_discrete(expand=c(0,0))
+
+p
+ggsave(paste0(path_result,"/regulations/regulation_NRW.png"),p)
+
+```
+ 
+## County level
+
+```{r}
+# for loop measures at 53 counties in NRW
+kreis_ls <- unique(reg_lk$kreis)
+plot_list <- list() # for storing each loop cycle result
+
+for( i in (1:length(kreis_ls))){
+kreis = kreis_ls[i]
+reg <- reg_lk %>% filter(kreis == kreis_ls[i])
+reg <- reg %>% select(-c(ags2, bundesland, ags5,kreis))
+
+reg<- pivot_longer(reg, cols=2:dim(reg)[2], names_to = "date", values_to = "measure_imp") # transpose from cols to rows
+reg$date <- gsub("^.{0,1}", "", reg$date)# Replace first character () with empty string ""
+reg$date <- as.Date(reg$date , format="%Y%m%d")
+reg$measure_imp <- as.factor(reg$measure_imp)
+
+ p <- reg%>%
+  ggplot(aes(date,m_code)) +
+  geom_tile(aes(fill=measure_imp ))+
+  scale_fill_manual(values=c("#ffffbf","#fc8d59"),
+                    label = c("No","Yes")) +
+  labs(fill = "Measure \n implement", x="", y=" Measures")+
+  ggtitle(paste0("Measures against spreading of COVID-19 in ", kreis))+
+  # facet_wrap(~GISD_5)+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"),
+        legend.position="right",
+        legend.title=element_text(size=18, colour = "black", face = "bold") ,
+        legend.text=element_text(size=17, colour = "black"),
+        axis.title = element_text(size=18, face="bold", colour = "black"),
+        plot.title = element_text(face="bold", size=18, hjust=0.5),
+        axis.text.x = element_text(size = 8,  hjust = 1, colour = "black", angle = 30, face = "bold"),
+        axis.text.y = element_text(size = 8, face = "bold")) + 
+  scale_x_date(date_labels="%Y-%m-%m", date_breaks = "21 days",expand = c(0, 0)) +
+  scale_y_discrete(expand=c(0,0))
+
+plot_list[[i]] <- p # store plots in the list
+ggsave(paste0(path_result,"/regulations/regulation_",kreis,".png"),p)
+}
+```
 
