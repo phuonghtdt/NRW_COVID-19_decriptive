@@ -51,7 +51,9 @@ library(gridExtra)
 set.seed(123456789)
 
 
-path_data<- paste0("C:/Users/huynh/sciebo/NRW_descriptive/data/")  
+path_data<- paste0("C:/Users/huynh/sciebo/NRW_descriptive/data/")
+path_data_code <- paste0("C:/Users/huynh/sciebo/NRW_descriptive/gitHub/NRW_COVID-19_decriptive/codes/data_codes")
+######################
 
 #http://r-statistics.co/Top50-Ggplot2-Visualizations-MasterList-R-Code.html
 # Stacked bar plot
@@ -77,65 +79,13 @@ NRW_pop_vacc <- NRW_pop - NRW_under12
 BUND data is summed by vaccine types daily while LK data is at individual level with age group but without vaccine types.
 
 ```{r}
-# File_paths
+
+source(paste0(path_data_code,"/vaccination.R"))
             
-Read_path_VaccData_BUND<-paste0(path_data,"Aktuell_Deutschland_Bundeslaender_COVID-19-Impfungen.csv")
-Read_path_VaccData_LK<-paste0(path_data,"Aktuell_Deutschland_Landkreise_COVID-19-Impfungen.csv")
-#read vaccination data
-vacc_rki_BUND<- read_csv(Read_path_VaccData_BUND)
-vacc_rki_LK<- read_csv(Read_path_VaccData_LK)
-
-
 ```
 
-##Subset to NRW
 
-```{r}
-# vaccinations in NRW
-# Bundesland level
-vacc_BUND <- vacc_rki_BUND %>% filter(BundeslandId_Impfort=="05")
-colnames(vacc_BUND) <- c("vac_date",'state_code',"vac_type",'dose',"vac_n")
-# County (lankreis) level
-vacc_LK<- vacc_rki_LK%>% filter(str_sub(LandkreisId_Impfort,1,2)=='05') # or is code of NRW
-colnames(vacc_LK) <- c("vac_date",'county_code',"age group",'dose',"vac_n")
-
-
-```
-
-##Cleaning data
-
-```{r}
-
-###################################################################################################
-# CAVE: It is necessary to distinguish between the vaccines, since only one dose is need when vaccinated with J&J.
-# dim_first & prax_first vaccinations will count first vaccinations WITHOUT the vaccine by J&J. 
-# For modeling purposes J&J will be treated as second vaccination, therefore it will be added to dim_sec & prax_sec vaccinations,
-# even though the datatable given by the LZG treats it as first vaccination.O
-##################################################################################################
-###Bundeslank level
-vacc_BUND$vac_type <- as.factor(vacc_BUND$vac_type)
-vacc_BUND$dose <- as.factor(vacc_BUND$dose)
-levels(vacc_BUND$dose) <- c("1", "2","booster") # label dose 3 as booster
-vacc_BUND$vac_date <- as.Date(vacc_BUND$vac_date)
-vacc_BUND$maxvacdate <- max(vacc_BUND$vac_date)
-vacc_BUND$vac_week <- as.integer((as.Date(vacc_BUND$vac_date)-as.Date("2020-01-01"))/7+1)
-
-#revert week to date: . ##Wed (1/1/2020), Wed is the start of a week
-vacc_BUND$vac_week_date <- lubridate::ymd( "2020-01-01" ) + lubridate::weeks(vacc_BUND$vac_week-1)# start at week 1 of the year
-
-# County (lankreis) level
-vacc_LK$dose <- as.factor(vacc_LK$dose)
-levels(vacc_LK$dose) <- c("1", "2","booster") # label dose 3 as booster
-vacc_LK$vac_date <- as.Date(vacc_LK$vac_date)
-vacc_LK$maxvacdate <- max(vacc_LK$vac_date)
-vacc_LK$vac_week <- as.integer((as.Date(vacc_LK$vac_date)-as.Date("2020-01-01"))/7+1)
-#revert week to date: . ##Wed (1/1/2020), Wed is the start of a week
-vacc_LK$vac_week_date <- lubridate::ymd( "2020-01-01" ) + lubridate::weeks(vacc_LK$vac_week-1)# start at week 1 of the year
-
-
-```
-
-# Vaccination
+# Descriptive
 ## daily
 
 ### vaccination progress regardless of vac_type and dose
@@ -143,10 +93,10 @@ vacc_LK$vac_week_date <- lubridate::ymd( "2020-01-01" ) + lubridate::weeks(vacc_
 ```{r}
 
 # # pop weighing
-# vacc_BUND %>% group_by(vac_date) %>%
+# vacc_BUND %>% group_by(rep_date) %>%
 #   summarise_if(is.numeric, sum)%>%
 #   mutate(vac_mean7da = zoo::rollmean(vac_n, k = 7, fill = NA))%>%
-#   ggplot(aes(x = vac_date))+
+#   ggplot(aes(x = rep_date))+
 #   geom_line(aes(y=vac_n/NRW_pop*100000, color = "vac_n/NRW_pop*100000"), size =1)+
 #   geom_line(aes(y=vac_mean7da/NRW_pop*100000,color = "vac_mean7da/NRW_pop*100000"), size = 1)+
 #   # facet_grid(row = vars(dose))+
@@ -171,10 +121,10 @@ vacc_LK$vac_week_date <- lubridate::ymd( "2020-01-01" ) + lubridate::weeks(vacc_
 
 # No pop weighing
 
-vacc_BUND %>% group_by(vac_date) %>%
+vacc_BUND %>% group_by(rep_date) %>%
   summarise_if(is.numeric, sum)%>%
   mutate(vac_mean7da = zoo::rollmean(vac_n, k = 7, fill = NA))%>%
-  ggplot(aes(x = vac_date))+
+  ggplot(aes(x = rep_date))+
   geom_line(aes(y=vac_n/1000, color = "vac_n"), size =1)+
   geom_line(aes(y=vac_mean7da/1000,color = "vac_mean7da"), size = 1)+
   # facet_grid(row = vars(dose))+
@@ -206,9 +156,9 @@ vacc_BUND %>% group_by(vac_date) %>%
 
 #vaccination_by date#############################
 ##No pop weighing
-p1 <- vacc_BUND%>% group_by(vac_date,dose)%>%
+p1 <- vacc_BUND%>% group_by(rep_date,dose)%>%
               summarise_if(is.numeric,sum)%>%
-  ggplot(aes(x = vac_date, y=vac_n/1000, group = dose))+
+  ggplot(aes(x = rep_date, y=vac_n/1000, group = dose))+
   # geom_bar(position="fill", stat="identity")+
   geom_line(aes(color=dose))+
   # facet_grid(row = vars(dose))+
@@ -231,9 +181,9 @@ p1 <- vacc_BUND%>% group_by(vac_date,dose)%>%
 p1
 
 # ##pop weighing
-# p1 <- vacc_BUND%>% group_by(vac_date,dose)%>%
+# p1 <- vacc_BUND%>% group_by(rep_date,dose)%>%
 #               summarise_if(is.numeric,sum)%>%
-#   ggplot(aes(x = vac_date, y=vac_n/NRW_pop*100000, group = dose))+
+#   ggplot(aes(x = rep_date, y=vac_n/NRW_pop*100000, group = dose))+
 #   # geom_bar(position="fill", stat="identity")+
 #   geom_line(aes(color=dose))+
 #   # facet_grid(row = vars(dose))+
@@ -255,9 +205,9 @@ p1
 # 
 # p1
 
-# p2 <- vacc_LK %>% group_by(vac_date,dose)%>%
+# p2 <- vacc_LK %>% group_by(rep_date,dose)%>%
 #               summarise_if(is.numeric,sum)%>%
-#   ggplot(aes(x = vac_date, y=vac_n/NRW_pop*100000, group = dose))+
+#   ggplot(aes(x = rep_date, y=vac_n/NRW_pop*100000, group = dose))+
 #   # geom_bar(position="fill", stat="identity")+
 #   geom_line(aes(color=dose))+
 #   # facet_grid(row = vars(dose))+
@@ -283,8 +233,8 @@ p1
 ```{r results='asis'}
 
 # reshape data
-vac_type <- vacc_BUND %>% dplyr::select(vac_date,vac_type,vac_n)%>%
-  group_by(vac_date,vac_type)%>%
+vac_type <- vacc_BUND %>% dplyr::select(rep_date,vac_type,vac_n)%>%
+  group_by(rep_date,vac_type)%>%
   summarise_if(is.numeric,sum)# count at date level
 
 vac_type <- vac_type %>%
@@ -301,15 +251,15 @@ mutate(Comirnaty_7da = zoo::rollmean(Comirnaty, k =7, fill = NA),
          )
 
 vac_type <- vac_type%>% dplyr::select(-c("Comirnaty","Janssen","Moderna","AstraZeneca"))
-colnames(vac_type) <- c("vac_date","Comirnaty","Janssen","Moderna","AstraZeneca")
+colnames(vac_type) <- c("rep_date","Comirnaty","Janssen","Moderna","AstraZeneca")
 
 vac_type <- na.omit(vac_type) # remove rows with NA due to rolling ave. step
 
 
-vac_type <- reshape2::melt(vac_type, id.vars = c("vac_date"))
+vac_type <- reshape2::melt(vac_type, id.vars = c("rep_date"))
 
 # stacked area chart
-p <- ggplot(vac_type, aes(x=vac_date, y=value/1000, fill=variable)) + 
+p <- ggplot(vac_type, aes(x=rep_date, y=value/1000, fill=variable)) + 
   geom_area()+
   scale_fill_manual(values=c("#d7191c", "#fdae61", "#abdda4", "#2b83ba"), name="Vaccine Type")+
   # scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
@@ -343,8 +293,8 @@ Check why the white appears in such a pattern!
 # Compute percentages with dplyr
 
 p <- vac_type  %>%
-  group_by(vac_date, variable) %>%
- ggplot(aes(x=vac_date, y=value, fill=variable)) + 
+  group_by(rep_date, variable) %>%
+ ggplot(aes(x=rep_date, y=value, fill=variable)) + 
   geom_bar(position="fill", stat="identity")+
   scale_y_continuous(labels = scales::percent_format()) +
   scale_fill_manual(values=c("#d7191c", "#fdae61", "#abdda4", "#2b83ba"), name="Vaccine Type")+
@@ -377,19 +327,19 @@ print(p)
 ```{r}
 #cum vac over time ###################
 
-vac_alltype1 <- vacc_BUND %>%filter(dose==1)%>% group_by(vac_date) %>%
+vac_alltype1 <- vacc_BUND %>%filter(dose==1)%>% group_by(rep_date) %>%
   summarise_if(is.numeric, sum)
 vac_alltype1 <- vac_alltype1 %>% dplyr::select(-c("vac_week"))# delete vac_week as it's wrong due to previous step
 vac_alltype1$vac_n_cum <- cumsum(vac_alltype1$vac_n)
 vac_alltype1$dose <- 1
 
-vac_alltype2 <- vacc_BUND %>%filter(dose==2)%>% group_by(vac_date) %>%
+vac_alltype2 <- vacc_BUND %>%filter(dose==2)%>% group_by(rep_date) %>%
   summarise_if(is.numeric, sum)
 vac_alltype2 <- vac_alltype2 %>% dplyr::select(-c("vac_week"))# delete vac_week as it's wrong due to previous step
 vac_alltype2$vac_n_cum <- cumsum(vac_alltype2$vac_n)
 vac_alltype2$dose <- 2
 
-vac_alltype3 <- vacc_BUND %>%filter(dose=="booster")%>% group_by(vac_date) %>%
+vac_alltype3 <- vacc_BUND %>%filter(dose=="booster")%>% group_by(rep_date) %>%
   summarise_if(is.numeric, sum)
 vac_alltype3 <- vac_alltype3%>% dplyr::select(-c("vac_week"))# delete vac_week as it's wrong due to previous step
 vac_alltype3$vac_n_cum <- cumsum(vac_alltype3$vac_n)
@@ -399,7 +349,7 @@ vac_alltype <- rbind(vac_alltype1,vac_alltype2,vac_alltype3)
 
 
 ggplot(vac_alltype,
-       aes(x = vac_date,y=vac_n_cum/NRW_pop_vacc*100, color = dose))+
+       aes(x = rep_date,y=vac_n_cum/NRW_pop_vacc*100, color = dose))+
   # geom_bar(position="fill", stat="identity")+
   geom_line()+
   # facet_grid(row = vars(dose))+
