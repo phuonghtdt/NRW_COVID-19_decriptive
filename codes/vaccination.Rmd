@@ -258,6 +258,7 @@ vac_type <- na.omit(vac_type) # remove rows with NA due to rolling ave. step
 
 vac_type <- reshape2::melt(vac_type, id.vars = c("rep_date"))
 
+
 # stacked area chart
 p <- ggplot(vac_type, aes(x=rep_date, y=value/1000, fill=variable)) + 
   geom_area()+
@@ -291,7 +292,7 @@ Check why the white appears in such a pattern!
 
 ```{r}
 # Compute percentages with dplyr
-
+# by vaccine type
 p <- vac_type  %>%
   group_by(rep_date, variable) %>%
  ggplot(aes(x=rep_date, y=value, fill=variable)) + 
@@ -318,6 +319,38 @@ p <- vac_type  %>%
         strip.text = element_text(colour = "black", size = 10, face = "bold"))
 
 print(p)
+
+# by age
+vac_age <- vacc %>%group_by(rep_week_date,age_vac)%>%
+  summarise(vac_n= sum(vac_n))
+
+vac_age_plot <- vac_age  %>%
+  group_by(rep_week_date, vac_n) %>%
+ ggplot(aes(x=rep_week_date, y=vac_n, fill=age_vac)) + 
+  geom_bar(position="fill", stat="identity")+
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_fill_manual(values=c("#d7191c", "#fdae61", "#abdda4", "#2b83ba"), name="Age of vaccination")+
+   # scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days",
+   #             limits = c(as.Date("2020-03-01"),as.Date("2021-12-30")),
+   #             expand = c(0, 0)) +
+   scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))+
+  labs(x = " ", y = "") +
+    ggtitle("")+
+  theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
+        axis.title = element_text(colour = "black", size = 15, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        # legend.position = c(0.12,0.8),
+        legend.position = "right",
+        legend.text = element_text(colour = "black", size = 15),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+
+print(vac_age_plot)
 
 ```
 
@@ -348,15 +381,23 @@ vac_alltype3$dose <- "booster"
 vac_alltype <- rbind(vac_alltype1,vac_alltype2,vac_alltype3)
 
 
-ggplot(vac_alltype,
-       aes(x = rep_date,y=vac_n_cum/NRW_pop_vacc*100, color = dose))+
+vac_cum_plot <- ggplot(vac_alltype,
+       aes(x = rep_date,y=vac_n_cum/NRW_pop*100, color = dose))+
   # geom_bar(position="fill", stat="identity")+
   geom_line()+
+  #wave3
+  geom_vline(xintercept = as.Date("2021-02-17"))+
+  geom_text(aes(x =as.Date("2021-02-17"),label = "Wave 3",y=88),color="red",angle=90, vjust = 1.2,text=element_text(size=11))+
+  #Wave4
+   geom_vline(xintercept = as.Date("2021-07-28"))+
+  geom_text(aes(x =as.Date("2021-07-28"),label = "Wave 4",y=88),color="red",angle=90, vjust = 1.2,text=element_text(size=11))+
   # facet_grid(row = vars(dose))+
   ylim(0,100)+
-  labs(x = "Vaccination time", y = "Vacinated percentage (%)/ target pop") +
-  ggtitle("NWR_vaccination")+
-  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days", expand = c(0, 0))+
+  labs(x = "Reported week commencing", y = "Acc. % of vaccinated poulation") +
+  ggtitle("")+
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "7 days",
+               limits = c(as.Date("2021-01-05"),as.Date("2021-12-31")),
+               expand = c(0, 0))+
   theme_classic()+
   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
         axis.text.y = element_text(colour = "black", size = 15, face = "bold"),
@@ -368,7 +409,26 @@ ggplot(vac_alltype,
         legend.text = element_text(colour = "black", size = 15),
         legend.title = element_text(colour = "black", size = 16, face = "bold"),
         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
-        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+        
+                strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+vac_cum_plot
+
+# Multiple pülot in one page
+panel <- ggarrange(vac_age_plot + rremove("x.text") , 
+          vac_cum_plot ,
+         # labels = c("A", "B"),
+         align = "v",
+         heights = c(0.35, 0.65),
+         ncol = 1, nrow = 2)
+
+annotate_figure(panel, 
+                left = textGrob("", rot = 90, vjust = 0.5, gp = gpar(cex = 1.5)))
+            
+
+
+
 
 
 ```
