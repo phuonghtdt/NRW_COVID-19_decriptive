@@ -78,9 +78,11 @@ start_day <- as.Date("2020-02-27")# data before this day won't be counted
 current_date <-as.Date("2021-12-29") # data is available up to this date
 
 #Under report ??
-u_report_w1 <- 0.75
-u_report_w2 <- 0.25
-cutoff_day <- as.Date("2020-10-09") # cutoff day bwt 2 scale
+u_report_w1 <- 0.78
+u_report_w2 <- 0.26
+cutoff_day <- as.Date("2020-10-10") # cutoff day bwt 2 scale
+# cutoff_day <- as.Date("2020-08-16") # to have a smoother , but need motivation for this?
+
 # pop(https://www.destatis.de/DE/Home/_inhalt.html)
 #ref map: https://www.mags.nrw/matchingberater-karte
 #NRW pop. by county: http://www.citypopulation.de/en/germany/cities/nordrheinwestfalen/
@@ -107,7 +109,7 @@ palette1 <- c("#8e0152","#c51b7d", "#de77ae","#f1b6da", "#fde0ef",
 
 ```
 
-# Data
+#Data
 
 Data from RKI: description of data can be read [here:](https://npgeo-corona-npgeo-de.hub.arcgis.com/datasets/a99afefd4258435f8af660b6cbed9bf7_0/about)
 
@@ -116,30 +118,30 @@ Census data from [Federal Statistical Office of Germany](https://www.destatis.de
 
 ```{r read in}
 #(1) Linelist_COVID-19 in NRW
-source(paste0(path_data_code,"/linelist.R"))
+source(paste0(path_data_code,"/linelist.R"),encoding="UTF-8")
 #(1.1) rki data:https://npgeo-corona-npgeo-de.hub.arcgis.com/datasets/a99afefd425843
-source(paste0(path_data_code,"/covid19_rki.R"))
+source(paste0(path_data_code,"/covid19_rki.R"),encoding="UTF-8")
 
 #(2) age distribution in NRW
-source(paste0(path_data_code,"/population.R"))
+source(paste0(path_data_code,"/population.R"),encoding="UTF-8")
 
 #(3) hospitalization
-source(paste0(path_data_code,"/hospitalisation.R"))
+source(paste0(path_data_code,"/hospitalisation.R"),encoding="UTF-8")
 
 #(4)Whole Germany_JHU data # up to date data
-source(paste0(path_data_code,"/covid19_jhu.R"))
+source(paste0(path_data_code,"/covid19_jhu.R"),encoding="UTF-8")
 
 # (5) NUTS_3##############################
-source(paste0(path_data_code,"/nuts3.R"))
+source(paste0(path_data_code,"/nuts3.R"),encoding="UTF-8")
 
 #(6) Deprivation upto 2015
-source(paste0(path_data_code,"/gisd.R"))
+source(paste0(path_data_code,"/gisd.R"),encoding="UTF-8")
 
 #(7) Regulations
-source(paste0(path_data_code,"/regulation.R"))
+source(paste0(path_data_code,"/regulation.R"),encoding="UTF-8")
  
 #(8) vaccinations in NRW
-source(paste0(path_data_code,"/vaccination.R"))
+source(paste0(path_data_code,"/vaccination.R"),encoding="UTF-8")
 
 ```
 
@@ -204,7 +206,7 @@ report_w1 <- 0.22 # under_report 78%
 report_w12 <- 0.55 # under_report45%
 report_w2 <- wave2/(wave12/report_w12 - wave1/report_w1)
 
-under_report_w2 <- 1- report_w2 # 25%
+under_report_w2 <- 1- report_w2 # 26%
 under_report_w2
 
 
@@ -240,7 +242,7 @@ dat<- merge(dat, dummy, by="agegroup2", all=T)# add nrw pop distribution by age
 dat_date <- dat %>%
   group_by(rep_date,rep_week_date,rep_week,agegroup2) %>%
   dplyr::summarise(case=n()) %>% #sum cases per date by age groups
-  ungroup() 
+  ungroup()
 
 ## sum cases of all age by week
 dat_allAge <- dat %>%
@@ -1277,9 +1279,6 @@ p1 <- ggplot() +
   scale_color_manual(name = "Daily report", values = c("case_mean7da"="red"),
                      labels = c("Rolling ave.7days"))+
   # scale_fill_manual(values=palette, name="Age group",)+
-  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
-               limits = c(as.Date("2020-03-01"),as.Date("2021-12-31")),
-               expand = c(0, 0))+
   # ylim(0,60)+
   labs(x = " ", y = "Weekly incidence per 100k",fill = " Age group") +
   ggtitle("Covid-19 incidence in NRW")+
@@ -1409,6 +1408,7 @@ p1<- dummy%>%
         legend.title = element_text(colour = "black", size = 16, face = "bold"),
         plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
         strip.text = element_text(colour = "black", size = 10, face = "bold"))
+rm(dummy)
 
 ####################################
 #2 Weekly incidence with age structure
@@ -1416,9 +1416,9 @@ p1<- dummy%>%
 
 palette <- c("#253494","#2c7fb8","#41b6c4","#7fcdbb","#c7e9b4","#ffffcc" )
 
-dummy <- dat %>%
-  group_by(rep_week_date,agegroup2) %>%
-  dplyr::summarise(case=n())#sum cases per week by age groups
+dummy <- dat%>%
+         group_by(rep_week_date,agegroup2)%>%
+         dplyr::summarise(case=n())#sum cases per week by age groups
 
 dummy$pop_NRW <- NRW_pop
 
@@ -1690,9 +1690,10 @@ p3 <- dummy %>%
   geom_bar(position="fill", stat="identity")+
   scale_y_continuous(labels = scales::percent_format()) + 
   scale_fill_manual(values=palette, name="Age group") +
-   labs(y="",x=" ")+
+   labs(y="",x="")+
   ggtitle(" Hospitalisation attributed to COVID-19 in NRW_weekly report")+
- scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", expand = c(0, 0)) +
+ scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", expand = c(0, 0.5)) +
+  # scale_x_date(breaks = unique(dat_week$rep_week_date))+ # display all dates on x axis
 theme_classic()+
   theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
         axis.text.y = element_text(colour = "black", size = 12, face = "bold"),
