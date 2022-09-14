@@ -2998,7 +2998,7 @@ mobi$week_date <-lubridate::ymd("2020-01-01" ) + lubridate::weeks(mobi$week-1)# 
 
 # data: from 27.02.2020 to 26.01.2022. However, for comparison with COVIMOD data, only data from 30.04.2020 to 31.12.2021 is used
 # mobi1 <- mobi %>% filter(date >= as.Date("2020-04-30")& date <= as.Date("2021-12-31")) # cut early date to be ib line with COVIMOD
-mobi1 <- mobi # as original data
+
                 
 
 ```
@@ -3008,6 +3008,8 @@ mobi1 <- mobi # as original data
 ```{r}
 # Number of contact 
 ## origin data
+
+mobi1 <- mobi # as original data
 ggplot(mobi1,aes( x = date)) +
    geom_line( aes(y = k,color = "k"), size = 1)+
    geom_line( aes(y = k_mean7da,color = "k_mean7da"), size = 1)+
@@ -3070,6 +3072,9 @@ ggplot(mobi1,aes( x = date)) +
 ```
 
 ## Google mobility
+
+[Google Community Mobility Reports](https://www.google.com/covid19/mobility/) shows how a community is moving around due to COVID-19 using individual movement histories to provide location-specific (retail and recreation, grocery and pharmacy, workplaces, transit stations, residential and parks) movement trends over time.
+
 
 ```{r}
 google_2020 <- read.csv(paste0(path_mobility,"/google/2020_DE_Region_Mobility_Report.csv"))
@@ -3188,6 +3193,8 @@ ggplot(google_melt%>%filter(variable !="ave_allplace_mean7da"&variable !="ave_al
 ```
 
 ## Facebook
+
+[Data & description:](https://research.facebook.com/blog/2020/06/protecting-privacy-in-facebook-mobility-data-during-the-covid-19-response/)
 
 **Change in Movement:** is to understand how much less people are moving around since
 the onset of the coronavirus epidemic. People move around were quantified  by counting the number of level-16 Bing tiles ( 600 x 600 meter).
@@ -3330,5 +3337,147 @@ ggplot(apple_melt,
 
 ```
 
- 
+# Panel
+
+```{r}
+
+##########################
+#1 COVIMOD
+##########################
+dummy <- df # df data from sumary table chunk
+p1 <- ggplot(dummy, aes(x=wave_date, y=all_contact_n))+ 
+    stat_summary(geom="ribbon", fun.data=mean_cl_normal, 
+                 fun.args=list(conf.int=0.95), fill="lightblue")+
+    stat_summary(geom="line", fun=mean, linetype="dashed")+
+    stat_summary(geom="point", fun=mean, color="red")+
+  coord_cartesian( ylim = c(0, 6))+
+   ggtitle("COVIMOD survey")+
+  labs(y="Mean_contact",x=" ")+
+  scale_x_date(breaks = unique(df$wave_date))+ # display all dates on x axis
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
+               limits = c(as.Date("2020-03-01"),as.Date("2021-12-31")),
+               expand = c(0, 0))+
+ theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 12, face = "bold"),
+        axis.title = element_text(colour = "black", size = 12, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.15,0.8),
+        # axis.ticks.length.y = unit(0.85,"cm"),#distance figure from y axis
+        legend.text = element_text(colour = "black", size = 12),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+##########################
+#2 Net check
+#########################
+
+dummy <- mobi # as original data
+p2 <- ggplot(dummy,aes( x = date)) +
+   geom_line( aes(y = cx,color = "cx"), size = 1)+
+   geom_line( aes(y = cx_mean7da,color = "cx_mean7da"), size = 1)+
+  
+   labs(y="Contact index",x="")+
+   # ylim (0,1000)+
+   ggtitle("Netcheck" )+
+   # scale_x_date(breaks = "21 days")+ # display all dates on x axis
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
+               limits = c(as.Date("2020-03-01"),as.Date("2021-12-31")),
+               expand = c(0, 0))+
+  scale_color_manual(name = "", values = c("cx"="blue","cx_mean7da"="red"),
+                     labels = c(
+                            "Daily contact index (CX)",
+                            "Rolling ave.7days"))+
+   theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 12, face = "bold"),
+        axis.title = element_text(colour = "black", size = 12, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.15,0.8),
+        legend.text = element_text(colour = "black", size = 12),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+
+####################################
+# Movement trend (google and facebook)
+####################################
+
+dummy <- google
+dummy <- merge(dummy, facebook, by = "date", all="T") ## add facebook data
+
+
+p3 <- ggplot(dummy,aes( x = date)) +
+  geom_line( aes(y = ave_allplace_nopark_mean7da,color = "ave_allplace_nopark_mean7da"), size = 1.5)+
+  geom_line( aes(y = grocery_pharmac_mean7da,color = "grocery_pharmac_mean7da"), size = 1)+
+  geom_line( aes(y = retail_recreation_mean7da,color = "retail_recreation_mean7da"), size = 1)+
+  geom_line( aes(y = transit_stations_mean7da,color = "transit_stations_mean7da"), size = 1)+
+  geom_line( aes(y = workplaces_mean7da,color = "workplaces_mean7da"), size = 1)+
+  geom_line( aes(y = residential_mean7da,color = "residential_mean7da"), size = 1)+
+  geom_line( aes(y = movement_change_mean7da*100,color = "movement_change_mean7da"), size = 1.5)+ #facebook
+  geom_line( aes(y = prop_one_location_mean7da*100,color = "prop_one_location_mean7da"), size = 1.5)+ #facebook
+   geom_hline(yintercept=0, linetype="dashed", 
+                color = "black", size=1)+
+   labs(y="",x="", color = "")+
+   ggtitle(" Google and facebook" )+
+   scale_y_continuous(limits = c(-100,100),breaks = seq(-100,100, by = 50),
+                      labels = c("-100%","-50%","Baseline","50%","100%"))+ #labels = unit_format(unit ="%")
+  # scale_x_date(breaks = "21 days")+ # display all dates on x axis
+  scale_x_date(date_labels="%Y-%m-%d", date_breaks = "14 days", 
+               limits = c(as.Date("2020-03-01"),as.Date("2021-12-31")),
+               expand = c(0, 0))+
+  scale_color_manual(name = "", values = c("ave_allplace_nopark_mean7da"="#d73027",
+                                           "grocery_pharmac_mean7da"="#f46d43",
+                                           "retail_recreation_mean7da"="#fdae61",
+                                           "transit_stations_mean7da"="#fee090",
+                                           "workplaces_mean7da"="#8c510a",
+                                           "residential_mean7da"="#01665e",
+                                           "prop_one_location_mean7da"= "#4d9221",
+                                           "movement_change_mean7da"="#542788"
+                                           ),
+                     
+                     labels = c("Average change (google)",
+                          "Grocery_pharmacy (google)",
+                          "Retail_recreation (google)",
+                          "Transit_stations(google)",
+                          "Workplaces(google)",
+                          "Residential(google)",
+                           "Stay a single place (facebook)",
+                          "Change in movement (facebook)"))+
+   theme_classic()+
+  theme(axis.text.x = element_text(colour = "black", size = 10, angle = 90, hjust = 0.5, vjust = 0,5),
+        axis.text.y = element_text(colour = "black", size = 12, face = "bold"),
+        axis.title = element_text(colour = "black", size = 12, face = "bold"),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.position = c(0.2,0.9),
+        legend.text = element_text(colour = "black", size = 8),
+        legend.title = element_text(colour = "black", size = 16, face = "bold"),
+        plot.title = element_text(colour = "black", size = 14, face = "bold",hjust = 0.5),
+        strip.text = element_text(colour = "black", size = 10, face = "bold"))
+
+
+
+
+########################################
+# combine 2 plots into panel 
+########################################
+
+# multiple plots in the same page 
+panel <- ggarrange(p1 +rremove("x.text"), 
+          p2 +rremove("x.text"),
+          p3,
+         labels = c("A", "B","C"),
+         align = "v", # align y axis equaly
+         heights=c(0.3, 0.2,0.5),
+        ncol = 1, nrow = 3)
+
+annotate_figure(panel, 
+                left = textGrob("", rot = 90, vjust = 0.5, gp = gpar(cex = 1.5)))
+           
+
+```
 
